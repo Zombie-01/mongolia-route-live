@@ -74,7 +74,7 @@ export function FleetMap({ shipments, focusId, onSelect }: Props) {
         <Marker
           key={s.id}
           position={s.position}
-          icon={makeTruckIcon(s.status)}
+          icon={makeTruckIcon(s)}
           eventHandlers={{ click: () => onSelect?.(s.id) }}
         />
       ))}
