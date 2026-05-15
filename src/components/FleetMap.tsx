@@ -4,7 +4,9 @@ import L from "leaflet";
 import type { Shipment } from "@/lib/demo-data";
 
 // Fix default icon URLs for bundlers
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+if (typeof window !== "undefined") {
+  delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+}
 
 function makeTruckIcon(status: Shipment["status"]) {
   const cls = status === "stopped" || status === "delayed" ? "stopped" : status === "delivered" ? "delivered" : "";
