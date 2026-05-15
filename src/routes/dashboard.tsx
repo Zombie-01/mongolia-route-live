@@ -72,7 +72,7 @@ function DashboardPage() {
                 <motion.button
                   layout
                   key={s.id}
-                  onClick={() => setFocus(active ? undefined : s.id)}
+                  onClick={() => { setFocus(s.id); setDetailId(s.id); }}
                   className={`glass w-full rounded-xl p-3 text-left transition-all ${
                     active ? "ring-2 ring-primary/60 glow" : "hover:border-border"
                   }`}
@@ -108,7 +108,8 @@ function DashboardPage() {
 
         {/* Map */}
         <div className="relative">
-          <FleetMap shipments={shipments} focusId={focus} onSelect={setFocus} />
+          <FleetMap shipments={shipments} focusId={focus} onSelect={(id) => { setFocus(id); setDetailId(id); }} />
+          <ShipmentDetailModal shipment={detail} onClose={() => setDetailId(null)} />
           <div className="glass pointer-events-none absolute left-4 top-4 rounded-xl px-3 py-2 text-xs text-muted-foreground">
             OpenStreetMap · Шууд GPS симуляц · Шинэчлэлт 3 секунд тутамд
           </div>
