@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import type { Shipment } from "@/lib/demo-data";
+import { ShipmentDetailModal } from "@/components/ShipmentDetailModal";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -21,6 +22,8 @@ function DashboardPage() {
   const { role, shipments } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = shipments.find((s) => s.id === detailId) ?? null;
 
   useEffect(() => {
     if (!role) nav({ to: "/" });
