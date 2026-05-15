@@ -1,5 +1,6 @@
 export type LatLng = [number, number];
 export type ShipmentStatus = "in_transit" | "stopped" | "delivered" | "delayed";
+export type VehicleType = "truck" | "wagon";
 
 export interface Shipment {
   id: string;
@@ -15,6 +16,8 @@ export interface Shipment {
   speed: number; // km/h (for display)
   eta: string;
   position: LatLng;
+  type: VehicleType;
+  country?: "MN" | "RU" | "CN";
 }
 
 // Mongolia geography — Ulaanbaatar to regional cities
