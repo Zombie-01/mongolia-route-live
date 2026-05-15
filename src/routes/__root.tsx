@@ -76,11 +76,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "ACHAA.live — Монголын ачаа тээврийн хяналт" },
       { name: "description", content: "Шууд GPS хяналт, OpenStreetMap дээр суурилсан логистикийн платформ." },
       { name: "author", content: "ACHAA.live" },
-      { property: "og:title", content: "ACHAA.live — Mongolia Fleet Tracking" },
-      { property: "og:description", content: "Real-time logistics tracking PWA for Mongolia." },
+      { property: "og:title", content: "ACHAA.live — Монголын ачаа тээврийн хяналт" },
+      { property: "og:description", content: "Шууд GPS хяналт, OpenStreetMap дээр суурилсан логистикийн платформ." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "ACHAA.live — Монголын ачаа тээврийн хяналт" },
+      { name: "twitter:description", content: "Шууд GPS хяналт, OpenStreetMap дээр суурилсан логистикийн платформ." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/f10041be-529c-42d4-9b37-ca59c3a36d92" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/f10041be-529c-42d4-9b37-ca59c3a36d92" },
     ],
     links: [
       {
