@@ -16,7 +16,7 @@ export interface Shipment {
   speed: number; // km/h (for display)
   eta: string;
   position: LatLng;
-  type: VehicleType;
+  type?: VehicleType;
   country?: "MN" | "RU" | "CN";
 }
 
