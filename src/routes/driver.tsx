@@ -1,0 +1,142 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useStore } from "@/lib/store";
+import { AppShell } from "@/components/AppShell";
+import { FleetMap } from "@/components/FleetMap";
+import type { ShipmentStatus } from "@/lib/demo-data";
+
+export const Route = createFileRoute("/driver")({
+  component: DriverPage,
+});
+
+function DriverPage() {
+  const { role, shipments, setStatus, sharingIds, toggleSharing } = useStore();
+  const nav = useNavigate();
+  const [active, setActive] = useState("s1");
+
+  useEffect(() => {
+    if (!role) nav({ to: "/" });
+  }, [role, nav]);
+
+  const myShipments = shipments.slice(0, 2);
+  const current = shipments.find((s) => s.id === active) ?? myShipments[0];
+  const sharing = sharingIds.has(current.id);
+
+  const statusBtns: { v: ShipmentStatus; label: string }[] = [
+    { v: "in_transit", label: "Замд" },
+    { v: "stopped", label: "Зогссон" },
+    { v: "delivered", label: "Хүргэгдсэн" },
+  ];
+
+  return (
+    <AppShell>
+      <div className="grid h-full grid-cols-1 lg:grid-cols-[400px_1fr]">
+        <aside className="flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-4 backdrop-blur">
+          <div className="glass rounded-2xl p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">Идэвхтэй ачаа</div>
+                <div className="mt-1 text-lg font-semibold">{current.trackingId}</div>
+              </div>
+              <button
+                onClick={() => toggleSharing(current.id)}
+                className={`relative h-7 w-12 rounded-full transition-colors ${
+                  sharing ? "bg-primary" : "bg-secondary"
+                }`}
+                aria-label="GPS sharing"
+              >
+                <motion.span
+                  layout
+                  className="absolute top-0.5 h-6 w-6 rounded-full bg-background shadow"
+                  animate={{ left: sharing ? 22 : 2 }}
+                />
+              </button>
+            </div>
+            <div className="mt-3 text-sm text-muted-foreground">
+              GPS дамжуулалт <span className={sharing ? "text-primary" : "text-warning"}>{sharing ? "идэвхтэй" : "идэвхгүй"}</span>
+            </div>
+
+            <div className="mt-5 space-y-2 text-sm">
+              <Row label="Ачаа" value={current.cargo} />
+              <Row label="Замнал" value={`${current.origin} → ${current.destination}`} />
+              <Row label="Машин" value={current.vehicleId} />
+              <Row label="Хурд" value={`${current.speed} км/ц`} />
+              <Row label="ETA" value={current.eta} />
+            </div>
+
+            <div className="mt-5">
+              <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Төлөв</div>
+              <div className="grid grid-cols-3 gap-2">
+                {statusBtns.map((b) => {
+                  const on = current.status === b.v;
+                  return (
+                    <button
+                      key={b.v}
+                      onClick={() => setStatus(current.id, b.v)}
+                      className={`rounded-lg border px-2 py-2 text-xs transition-colors ${
+                        on
+                          ? "border-primary/60 bg-primary/15 text-primary"
+                          : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {b.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setStatus(current.id, "in_transit")}
+                className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                ▶ Аялал эхлүүлэх
+              </button>
+              <button
+                onClick={() => setStatus(current.id, "stopped")}
+                className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
+              >
+                ■ Зогсоох
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 px-1 text-xs uppercase tracking-wider text-muted-foreground">Миний ачаанууд</div>
+            <div className="space-y-2">
+              {myShipments.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActive(s.id)}
+                  className={`glass w-full rounded-xl p-3 text-left text-sm transition-colors ${
+                    active === s.id ? "ring-1 ring-primary/50" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{s.trackingId}</span>
+                    <span className="text-xs text-muted-foreground">{s.destination}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="relative">
+          <FleetMap shipments={[current]} focusId={current.id} />
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{value}</span>
+    </div>
+  );
+}
