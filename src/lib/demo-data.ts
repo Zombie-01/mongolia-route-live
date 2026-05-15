@@ -101,7 +101,83 @@ export const initialShipments: Shipment[] = [
     eta: "Хүргэгдсэн",
     position: [44.895, 110.139],
   },
+  // Wagons from Russia (Наушки → Сүхбаатар → УБ rail line)
+  {
+    id: "s6",
+    trackingId: "RU-W-7781",
+    cargo: "Шатахуун (ОХУ-аас)",
+    origin: "Наушки, ОХУ",
+    destination: "Улаанбаатар",
+    driver: "Галт тэрэг бр. №14",
+    vehicleId: "ВАГОН-2204",
+    status: "in_transit",
+    route: route([50.3833, 106.1167], [50.236, 106.211], [49.486, 105.962], [48.9, 106.3], UB),
+    progress: 0.32,
+    speed: 48,
+    eta: "8ц 15м",
+    position: UB,
+    type: "wagon",
+    country: "RU",
+  },
+  {
+    id: "s7",
+    trackingId: "RU-W-7782",
+    cargo: "Модон материал (ОХУ)",
+    origin: "Улаан-Үд, ОХУ",
+    destination: "Эрдэнэт",
+    driver: "Галт тэрэг бр. №21",
+    vehicleId: "ВАГОН-3318",
+    status: "in_transit",
+    route: route([51.834, 107.584], [50.4, 106.5], [49.8, 105.5], [49.0277, 104.0444]),
+    progress: 0.15,
+    speed: 55,
+    eta: "12ц 40м",
+    position: UB,
+    type: "wagon",
+    country: "RU",
+  },
+  // Wagons from China (Эрээн / Замын-Үүд border)
+  {
+    id: "s8",
+    trackingId: "CN-W-9012",
+    cargo: "Электрон бараа (БНХАУ)",
+    origin: "Эрээн, БНХАУ",
+    destination: "Улаанбаатар",
+    driver: "Галт тэрэг бр. №07",
+    vehicleId: "ВАГОН-5540",
+    status: "in_transit",
+    route: route([43.6533, 111.9779], [43.7228, 111.8953], [44.5, 111.0], [45.5, 109.5], [47.0, 108.0], UB),
+    progress: 0.58,
+    speed: 62,
+    eta: "6ц 05м",
+    position: UB,
+    type: "wagon",
+    country: "CN",
+  },
+  {
+    id: "s9",
+    trackingId: "CN-W-9013",
+    cargo: "Барилгын ган (БНХАУ)",
+    origin: "Тяньжин, БНХАУ",
+    destination: "Дархан",
+    driver: "Галт тэрэг бр. №31",
+    vehicleId: "ВАГОН-6677",
+    status: "delayed",
+    route: route([39.3434, 117.3616], [42.0, 114.0], [43.7228, 111.8953], [45.5, 109.5], [47.0, 108.0], UB, [48.3, 106.85], [49.486, 105.962]),
+    progress: 0.41,
+    speed: 38,
+    eta: "22ц 10м",
+    position: UB,
+    type: "wagon",
+    country: "CN",
+  },
 ];
+
+// Add type to truck shipments above
+initialShipments.slice(0, 5).forEach((s) => {
+  s.type = "truck";
+  s.country = "MN";
+});
 
 // Linear interpolation helper for smooth movement along multi-segment routes
 export function pointOnRoute(route: LatLng[], t: number): LatLng {
