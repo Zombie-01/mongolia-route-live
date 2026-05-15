@@ -8,13 +8,15 @@ if (typeof window !== "undefined") {
   delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 }
 
-function makeTruckIcon(status: Shipment["status"]) {
-  const cls = status === "stopped" || status === "delayed" ? "stopped" : status === "delivered" ? "delivered" : "";
+function makeTruckIcon(s: Shipment) {
+  const cls = s.status === "stopped" || s.status === "delayed" ? "stopped" : s.status === "delivered" ? "delivered" : "";
+  const emoji = s.type === "wagon" ? "🚆" : "🚚";
+  const flag = s.country === "RU" ? "🇷🇺" : s.country === "CN" ? "🇨🇳" : "";
   return L.divIcon({
     className: "",
     iconSize: [36, 36],
     iconAnchor: [18, 18],
-    html: `<div class="truck-marker ${cls}">🚚</div>`,
+    html: `<div class="truck-marker ${cls}">${emoji}${flag ? `<span style="position:absolute;bottom:-4px;right:-6px;font-size:12px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">${flag}</span>` : ""}</div>`,
   });
 }
 
@@ -72,7 +74,7 @@ export function FleetMap({ shipments, focusId, onSelect }: Props) {
         <Marker
           key={s.id}
           position={s.position}
-          icon={makeTruckIcon(s.status)}
+          icon={makeTruckIcon(s)}
           eventHandlers={{ click: () => onSelect?.(s.id) }}
         />
       ))}
