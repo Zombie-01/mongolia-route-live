@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Polyline, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { Shipment } from "@/lib/demo-data";
@@ -39,6 +39,9 @@ interface Props {
 
 export function FleetMap({ shipments, focusId, onSelect }: Props) {
   const center = useMemo<[number, number]>(() => [47.9184, 106.9177], []);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">Газрын зураг ачаалж байна…</div>;
   return (
     <MapContainer
       center={center}
