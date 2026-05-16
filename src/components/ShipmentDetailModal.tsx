@@ -233,26 +233,6 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                   />
                 </div>
               </Section>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-              {/* Telemetry */}
-              <Section title="Тээврийн төлөв">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <Mini label="Хурд" value={`${shipment.speed} км/ц`} />
-                  <Mini label="ETA" value={shipment.eta} />
-                  <Mini label="Төлөв" value={statusLabel[shipment.status]} />
-                  <Mini
-                    label="Сүүлийн GPS"
-                    value={`${shipment.position[0].toFixed(3)}, ${shipment.position[1].toFixed(3)}`}
-                  />
-                </div>
-              </Section>
 
               {/* Admin: manual GPS override (when network drops) */}
               {isAdmin && onOverrideGPS && (
