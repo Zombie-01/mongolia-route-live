@@ -120,7 +120,28 @@ function DashboardPage() {
         {/* Map */}
         <div className="relative">
           <FleetMap shipments={shipments} focusId={focus} onSelect={(id) => { setFocus(id); setDetailId(id); }} />
-          <ShipmentDetailModal shipment={detail} onClose={() => setDetailId(null)} />
+          <ShipmentDetailModal
+            shipment={detail}
+            onClose={() => setDetailId(null)}
+            isAdmin
+            onEdit={(id) => {
+              const s = shipments.find((x) => x.id === id) ?? null;
+              setEditing(s);
+              setDetailId(null);
+              setFormOpen(true);
+            }}
+            onDelete={(id) => removeShipment(id)}
+            onOverrideGPS={(id, lat, lng) => overridePosition(id, [lat, lng])}
+          />
+          <ShipmentFormModal
+            open={formOpen}
+            initial={editing}
+            onClose={() => setFormOpen(false)}
+            onSave={(s) => {
+              if (editing) updateShipment(editing.id, s);
+              else addShipment(s);
+            }}
+          />
           <div className="glass pointer-events-none absolute left-4 top-4 rounded-xl px-3 py-2 text-xs text-muted-foreground">
             OpenStreetMap · Шууд GPS симуляц · Шинэчлэлт 3 секунд тутамд
           </div>
