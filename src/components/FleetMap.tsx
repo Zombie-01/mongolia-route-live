@@ -61,7 +61,7 @@ export function FleetMap({ shipments, focusId, onSelect }: Props) {
       {shipments.map((s) => (
         <Polyline
           key={`r-${s.id}`}
-          positions={s.route}
+          positions={s.roadRoute ?? s.route}
           pathOptions={{
             color: s.status === "delayed" ? "#f59e0b" : s.status === "delivered" ? "#6366f1" : "#10b981",
             weight: focusId === s.id ? 4 : 2.5,

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { initialShipments, pointOnRoute, type Shipment, type ShipmentStatus } from "./demo-data";
+import { initialShipments, pointOnRoute, fetchRoadRoute, type Shipment, type ShipmentStatus } from "./demo-data";
 
 type Role = "admin" | "driver" | "customer";
 
@@ -34,16 +34,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set(["s1"]));
   const tickRef = useRef<number | null>(null);
 
-  // Simulation loop — every 3s advance each in_transit shipment
+  // Fetch real road/rail geometry once on mount so polylines hug actual map paths
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        initialShipments.map(async (s) => ({ id: s.id, road: await fetchRoadRoute(s.route) })),
+      );
+      if (cancelled) return;
+      setShipments((prev) =>
+        prev.map((s) => {
+          const r = results.find((x) => x.id === s.id);
+          if (!r?.road || r.road.length < 2) return s;
+          return { ...s, roadRoute: r.road, position: pointOnRoute(r.road, s.progress) };
+        }),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Simulation loop — every 3.5s advance each in_transit shipment along the real road geometry
   useEffect(() => {
     const tick = () => {
       setShipments((prev) =>
         prev.map((s) => {
           if (s.status !== "in_transit") return s;
-          // speed variance + occasional pause
+          const path = s.roadRoute ?? s.route;
           const jitter = 0.002 + Math.random() * 0.004;
           const newProgress = Math.min(1, s.progress + jitter);
-          const newPos = pointOnRoute(s.route, newProgress);
+          const newPos = pointOnRoute(path, newProgress);
           const newSpeed = 55 + Math.round(Math.random() * 35);
           const status: ShipmentStatus = newProgress >= 1 ? "delivered" : "in_transit";
           return { ...s, progress: newProgress, position: newPos, speed: newSpeed, status };
