@@ -29,7 +29,8 @@ export function ShipmentDetailModal({ shipment, onClose }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-50 grid place-items-center bg-background/70 p-4 backdrop-blur"
+          style={{ zIndex: 10000 }}
+          className="fixed inset-0 grid place-items-center bg-background/70 p-4 backdrop-blur"
         >
           <motion.div
             key="panel"
