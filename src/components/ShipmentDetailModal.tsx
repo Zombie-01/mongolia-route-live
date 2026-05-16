@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Shipment } from "@/lib/demo-data";
 
@@ -24,9 +25,25 @@ const countryLabel: Record<string, string> = {
 interface Props {
   shipment: Shipment | null;
   onClose: () => void;
+  isAdmin?: boolean;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onOverrideGPS?: (id: string, lat: number, lng: number) => void;
 }
 
-export function ShipmentDetailModal({ shipment, onClose }: Props) {
+export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDelete, onOverrideGPS }: Props) {
+  const [gpsLat, setGpsLat] = useState("");
+  const [gpsLng, setGpsLng] = useState("");
+  const [gpsOpen, setGpsOpen] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setGpsLat(shipment.position[0].toFixed(5));
+      setGpsLng(shipment.position[1].toFixed(5));
+      setGpsOpen(false);
+    }
+  }, [shipment?.id, shipment]);
+
   return (
     <AnimatePresence>
       {shipment && (
@@ -67,6 +84,27 @@ export function ShipmentDetailModal({ shipment, onClose }: Props) {
                 <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${statusCls[shipment.status]}`}>
                   {statusLabel[shipment.status]}
                 </span>
+                {isAdmin && onEdit && (
+                  <button
+                    onClick={() => onEdit(shipment.id)}
+                    className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
+                  >
+                    ✎ Засах
+                  </button>
+                )}
+                {isAdmin && onDelete && (
+                  <button
+                    onClick={() => {
+                      if (confirm("Энэ хүргэлтийг устгах уу?")) {
+                        onDelete(shipment.id);
+                        onClose();
+                      }
+                    }}
+                    className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
+                  >
+                    🗑
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
@@ -195,6 +233,63 @@ export function ShipmentDetailModal({ shipment, onClose }: Props) {
                   />
                 </div>
               </Section>
+
+              {/* Admin: manual GPS override (when network drops) */}
+              {isAdmin && onOverrideGPS && (
+                <Section title="GPS гарын засвар (сүлжээ тасрах үед)">
+                  <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                    {!gpsOpen ? (
+                      <button
+                        onClick={() => setGpsOpen(true)}
+                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-foreground hover:border-warning/50"
+                      >
+                        📍 GPS байршил гараар тааруулах
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-[11px] text-muted-foreground">
+                          Сүлжээгүй бүсэд жолоочтой утсаар холбогдож одоогийн координатыг шинэчилнэ.
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            value={gpsLat}
+                            onChange={(e) => setGpsLat(e.target.value)}
+                            placeholder="Lat (47.9184)"
+                            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs tabular-nums outline-none focus:border-primary"
+                          />
+                          <input
+                            value={gpsLng}
+                            onChange={(e) => setGpsLng(e.target.value)}
+                            placeholder="Lng (106.9177)"
+                            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs tabular-nums outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setGpsOpen(false)}
+                            className="rounded-md border border-border bg-card/60 px-3 py-1.5 text-xs"
+                          >
+                            Болих
+                          </button>
+                          <button
+                            onClick={() => {
+                              const la = parseFloat(gpsLat);
+                              const ln = parseFloat(gpsLng);
+                              if (Number.isFinite(la) && Number.isFinite(ln)) {
+                                onOverrideGPS(shipment.id, la, ln);
+                                setGpsOpen(false);
+                              }
+                            }}
+                            className="rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-background hover:opacity-90"
+                          >
+                            Шинэчлэх
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              )}
             </div>
           </motion.div>
         </motion.div>
