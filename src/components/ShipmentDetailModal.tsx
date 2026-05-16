@@ -8,6 +8,13 @@ const statusLabel: Record<Shipment["status"], string> = {
   delivered: "Хүргэгдсэн",
 };
 
+const statusCls: Record<Shipment["status"], string> = {
+  in_transit: "bg-primary/15 text-primary border-primary/30",
+  stopped: "bg-warning/15 text-warning border-warning/30",
+  delayed: "bg-destructive/15 text-destructive border-destructive/40",
+  delivered: "bg-accent/15 text-accent border-accent/30",
+};
+
 const countryLabel: Record<string, string> = {
   MN: "🇲🇳 Монгол",
   RU: "🇷🇺 ОХУ",
@@ -39,41 +46,43 @@ export function ShipmentDetailModal({ shipment, onClose }: Props) {
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass w-full max-w-lg overflow-hidden rounded-2xl"
+            className="glass flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl"
           >
-            <div className="flex items-start justify-between border-b border-border p-5">
-              <div>
-                <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
                   <span>{shipment.trackingId}</span>
                   <span>·</span>
                   <span>{shipment.type === "wagon" ? "🚆 Вагон" : "🚚 Ачааны машин"}</span>
+                  <span>·</span>
+                  <span>{countryLabel[shipment.country ?? "MN"]}</span>
                 </div>
-                <h3 className="mt-1 text-xl font-semibold">{shipment.cargo}</h3>
+                <h3 className="mt-1 truncate text-xl font-semibold">{shipment.cargo}</h3>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {shipment.shipper} → {shipment.consignee}
+                </div>
               </div>
-              <button
-                onClick={onClose}
-                className="rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${statusCls[shipment.status]}`}>
+                  {statusLabel[shipment.status]}
+                </span>
+                <button
+                  onClick={onClose}
+                  className="rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4 p-5">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <Field label="Илгээх улс" value={countryLabel[shipment.country ?? "MN"]} />
-                <Field label="Төлөв" value={statusLabel[shipment.status]} />
-                <Field label="Эхлэл" value={shipment.origin} />
-                <Field label="Хүрэх газар" value={shipment.destination} />
-                <Field label="Жолооч / Бригад" value={shipment.driver} />
-                <Field label="Машин / Вагон" value={shipment.vehicleId} />
-                <Field label="Хурд" value={`${shipment.speed} км/ц`} />
-                <Field label="ETA" value={shipment.eta} />
-              </div>
-
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+              {/* Progress */}
               <div>
                 <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                  <span>Замналын явц</span>
-                  <span className="tabular-nums">{Math.round(shipment.progress * 100)}%</span>
+                  <span>{shipment.origin}</span>
+                  <span className="tabular-nums">{Math.round(shipment.progress * 100)}% · ETA {shipment.eta}</span>
+                  <span>{shipment.destination}</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-secondary">
                   <motion.div
@@ -84,12 +93,108 @@ export function ShipmentDetailModal({ shipment, onClose }: Props) {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-card/40 p-3 text-xs text-muted-foreground">
-                <div className="mb-1 font-medium text-foreground">Сүүлийн GPS</div>
-                <div className="font-mono tabular-nums">
-                  {shipment.position[0].toFixed(4)}°N, {shipment.position[1].toFixed(4)}°E
+              {/* Driver */}
+              <Section title="Жолооч / Бригад">
+                <div className="glass rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-semibold">{shipment.driver}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Туршлага {shipment.driverExperience} · Үнэлгээ ⭐ {shipment.driverRating.toFixed(1)}
+                      </div>
+                    </div>
+                    <a
+                      href={`tel:${shipment.driverPhone.replace(/\s/g, "")}`}
+                      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                    >
+                      📞 Залгах
+                    </a>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <Mini label="Утас" value={shipment.driverPhone} />
+                    <Mini label="Үнэмлэх" value={shipment.driverLicense} />
+                    <Mini label="Улсын дугаар" value={shipment.plateNumber} />
+                    <Mini label="Даацын чадал" value={shipment.capacity} />
+                  </div>
                 </div>
-              </div>
+              </Section>
+
+              {/* Cargo manifest */}
+              <Section title={`Ачааны жагсаалт — нийт ${shipment.totalWeight}`}>
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-card/60 text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Бүтээгдэхүүн</th>
+                        <th className="px-3 py-2 text-right">Хэмжээ</th>
+                        <th className="px-3 py-2 text-left">Тэмдэглэл</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shipment.cargoItems.map((c, i) => (
+                        <tr key={i} className="border-t border-border">
+                          <td className="px-3 py-2 font-medium">{c.name}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{c.qty} {c.unit ?? "тн"}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{c.note ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Section>
+
+              {/* Dropoffs */}
+              <Section title="Буулгах цэгүүд">
+                <div className="space-y-2">
+                  {shipment.dropoffs.map((d, i) => (
+                    <div key={i} className="glass rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-semibold">
+                            #{i + 1} · {d.location}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                            {d.position[0].toFixed(4)}°N, {d.position[1].toFixed(4)}°E · ETA {d.eta}
+                          </div>
+                          {d.contact && (
+                            <div className="mt-0.5 text-[11px] text-muted-foreground">Холбогдох: {d.contact}</div>
+                          )}
+                        </div>
+                        <span
+                          className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] ${
+                            d.status === "done"
+                              ? "border-accent/30 bg-accent/15 text-accent"
+                              : "border-primary/30 bg-primary/15 text-primary"
+                          }`}
+                        >
+                          {d.status === "done" ? "Буулгасан" : "Хүлээгдэж буй"}
+                        </span>
+                      </div>
+                      <ul className="mt-2 space-y-0.5 text-xs">
+                        {d.items.map((it, j) => (
+                          <li key={j} className="flex justify-between border-t border-border/60 py-1">
+                            <span className="text-muted-foreground">{it.name}</span>
+                            <span className="font-medium tabular-nums">{it.qty} {it.unit ?? "тн"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+
+              {/* Telemetry */}
+              <Section title="Тээврийн төлөв">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Mini label="Хурд" value={`${shipment.speed} км/ц`} />
+                  <Mini label="ETA" value={shipment.eta} />
+                  <Mini label="Төлөв" value={statusLabel[shipment.status]} />
+                  <Mini
+                    label="Сүүлийн GPS"
+                    value={`${shipment.position[0].toFixed(3)}, ${shipment.position[1].toFixed(3)}`}
+                  />
+                </div>
+              </Section>
             </div>
           </motion.div>
         </motion.div>
@@ -98,11 +203,20 @@ export function ShipmentDetailModal({ shipment, onClose }: Props) {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card/60 p-3">
+    <div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card/60 p-2">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-0.5 font-medium">{value}</div>
+      <div className="mt-0.5 truncate text-xs font-medium">{value}</div>
     </div>
   );
 }
