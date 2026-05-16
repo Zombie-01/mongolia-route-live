@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import type { Shipment } from "@/lib/demo-data";
 import { ShipmentDetailModal } from "@/components/ShipmentDetailModal";
+import { ShipmentFormModal } from "@/components/ShipmentFormModal";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -19,10 +20,12 @@ const statusMeta: Record<Shipment["status"], { label: string; cls: string }> = {
 };
 
 function DashboardPage() {
-  const { role, shipments } = useStore();
+  const { role, shipments, addShipment, updateShipment, removeShipment, overridePosition } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Shipment | null>(null);
   const detail = shipments.find((s) => s.id === detailId) ?? null;
 
   useEffect(() => {
@@ -59,9 +62,17 @@ function DashboardPage() {
 
           <div className="flex items-center justify-between px-4 pt-4">
             <h2 className="text-sm font-semibold">Идэвхтэй ачаанууд</h2>
-            <button onClick={() => setFocus(undefined)} className="text-xs text-muted-foreground hover:text-foreground">
-              Бүгд
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setFocus(undefined)} className="text-xs text-muted-foreground hover:text-foreground">
+                Бүгд
+              </button>
+              <button
+                onClick={() => { setEditing(null); setFormOpen(true); }}
+                className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
+              >
+                + Шинэ
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 space-y-2 overflow-y-auto p-4">
