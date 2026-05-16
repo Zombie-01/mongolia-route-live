@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { initialShipments, pointOnRoute, fetchRoadRoute, type Shipment, type ShipmentStatus } from "./demo-data";
+import { initialShipments, pointOnRoute, fetchRoadRoute, type LatLng, type Shipment, type ShipmentStatus } from "./demo-data";
 
 type Role = "admin" | "driver" | "customer";
 
@@ -15,6 +15,12 @@ interface StoreState extends AuthState {
   setStatus: (id: string, status: ShipmentStatus) => void;
   toggleSharing: (id: string) => void;
   sharingIds: Set<string>;
+  // Admin actions
+  addShipment: (s: Shipment) => void;
+  updateShipment: (id: string, patch: Partial<Shipment>) => void;
+  removeShipment: (id: string) => void;
+  overridePosition: (id: string, pos: LatLng) => void;
+  refreshRoadRoute: (id: string) => Promise<void>;
 }
 
 const Ctx = createContext<StoreState | null>(null);
@@ -34,7 +40,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set(["s1"]));
   const tickRef = useRef<number | null>(null);
 
-  // Fetch real road/rail geometry once on mount so polylines hug actual map paths
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -55,7 +60,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Simulation loop — every 3.5s advance each in_transit shipment along the real road geometry
   useEffect(() => {
     const tick = () => {
       setShipments((prev) =>
@@ -97,6 +101,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
+  const addShipment = (s: Shipment) => {
+    setShipments((prev) => [s, ...prev]);
+    // Try to enrich with real road geometry in background
+    fetchRoadRoute(s.route).then((road) => {
+      if (!road || road.length < 2) return;
+      setShipments((prev) =>
+        prev.map((x) => (x.id === s.id ? { ...x, roadRoute: road, position: pointOnRoute(road, x.progress) } : x)),
+      );
+    });
+  };
+
+  const updateShipment = (id: string, patch: Partial<Shipment>) => {
+    setShipments((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const merged = { ...s, ...patch };
+        // If route changed, drop cached road geometry so it can be refetched
+        if (patch.route && patch.route !== s.route) merged.roadRoute = undefined;
+        return merged;
+      }),
+    );
+    if (patch.route) {
+      fetchRoadRoute(patch.route).then((road) => {
+        if (!road || road.length < 2) return;
+        setShipments((prev) =>
+          prev.map((x) => (x.id === id ? { ...x, roadRoute: road, position: pointOnRoute(road, x.progress) } : x)),
+        );
+      });
+    }
+  };
+
+  const removeShipment = (id: string) =>
+    setShipments((prev) => prev.filter((s) => s.id !== id));
+
+  const overridePosition = (id: string, pos: LatLng) =>
+    setShipments((prev) => prev.map((s) => (s.id === id ? { ...s, position: pos, speed: 0 } : s)));
+
+  const refreshRoadRoute = async (id: string) => {
+    const s = shipments.find((x) => x.id === id);
+    if (!s) return;
+    const road = await fetchRoadRoute(s.route);
+    if (!road || road.length < 2) return;
+    setShipments((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, roadRoute: road, position: pointOnRoute(road, x.progress) } : x)),
+    );
+  };
+
   return (
     <Ctx.Provider
       value={{
@@ -108,6 +159,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setStatus,
         toggleSharing,
         sharingIds,
+        addShipment,
+        updateShipment,
+        removeShipment,
+        overridePosition,
+        refreshRoadRoute,
       }}
     >
       {children}
