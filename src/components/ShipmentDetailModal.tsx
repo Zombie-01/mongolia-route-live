@@ -84,6 +84,27 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                 <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${statusCls[shipment.status]}`}>
                   {statusLabel[shipment.status]}
                 </span>
+                {isAdmin && onEdit && (
+                  <button
+                    onClick={() => onEdit(shipment.id)}
+                    className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
+                  >
+                    ✎ Засах
+                  </button>
+                )}
+                {isAdmin && onDelete && (
+                  <button
+                    onClick={() => {
+                      if (confirm("Энэ хүргэлтийг устгах уу?")) {
+                        onDelete(shipment.id);
+                        onClose();
+                      }
+                    }}
+                    className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
+                  >
+                    🗑
+                  </button>
+                )}
                 <button
                   onClick={onClose}
                   className="rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
@@ -212,6 +233,83 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                   />
                 </div>
               </Section>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+              {/* Telemetry */}
+              <Section title="Тээврийн төлөв">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Mini label="Хурд" value={`${shipment.speed} км/ц`} />
+                  <Mini label="ETA" value={shipment.eta} />
+                  <Mini label="Төлөв" value={statusLabel[shipment.status]} />
+                  <Mini
+                    label="Сүүлийн GPS"
+                    value={`${shipment.position[0].toFixed(3)}, ${shipment.position[1].toFixed(3)}`}
+                  />
+                </div>
+              </Section>
+
+              {/* Admin: manual GPS override (when network drops) */}
+              {isAdmin && onOverrideGPS && (
+                <Section title="GPS гарын засвар (сүлжээ тасрах үед)">
+                  <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
+                    {!gpsOpen ? (
+                      <button
+                        onClick={() => setGpsOpen(true)}
+                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-foreground hover:border-warning/50"
+                      >
+                        📍 GPS байршил гараар тааруулах
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-[11px] text-muted-foreground">
+                          Сүлжээгүй бүсэд жолоочтой утсаар холбогдож одоогийн координатыг шинэчилнэ.
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            value={gpsLat}
+                            onChange={(e) => setGpsLat(e.target.value)}
+                            placeholder="Lat (47.9184)"
+                            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs tabular-nums outline-none focus:border-primary"
+                          />
+                          <input
+                            value={gpsLng}
+                            onChange={(e) => setGpsLng(e.target.value)}
+                            placeholder="Lng (106.9177)"
+                            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs tabular-nums outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setGpsOpen(false)}
+                            className="rounded-md border border-border bg-card/60 px-3 py-1.5 text-xs"
+                          >
+                            Болих
+                          </button>
+                          <button
+                            onClick={() => {
+                              const la = parseFloat(gpsLat);
+                              const ln = parseFloat(gpsLng);
+                              if (Number.isFinite(la) && Number.isFinite(ln)) {
+                                onOverrideGPS(shipment.id, la, ln);
+                                setGpsOpen(false);
+                              }
+                            }}
+                            className="rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-background hover:opacity-90"
+                          >
+                            Шинэчлэх
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              )}
             </div>
           </motion.div>
         </motion.div>
