@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Shipment } from "@/lib/demo-data";
 
@@ -24,9 +25,25 @@ const countryLabel: Record<string, string> = {
 interface Props {
   shipment: Shipment | null;
   onClose: () => void;
+  isAdmin?: boolean;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onOverrideGPS?: (id: string, lat: number, lng: number) => void;
 }
 
-export function ShipmentDetailModal({ shipment, onClose }: Props) {
+export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDelete, onOverrideGPS }: Props) {
+  const [gpsLat, setGpsLat] = useState("");
+  const [gpsLng, setGpsLng] = useState("");
+  const [gpsOpen, setGpsOpen] = useState(false);
+
+  useEffect(() => {
+    if (shipment) {
+      setGpsLat(shipment.position[0].toFixed(5));
+      setGpsLng(shipment.position[1].toFixed(5));
+      setGpsOpen(false);
+    }
+  }, [shipment?.id, shipment]);
+
   return (
     <AnimatePresence>
       {shipment && (
