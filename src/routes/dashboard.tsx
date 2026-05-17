@@ -20,7 +20,16 @@ const statusMeta: Record<Shipment["status"], { label: string; cls: string }> = {
 };
 
 function DashboardPage() {
-  const { role, loading, shipments, addShipment, updateShipment, removeShipment, overridePosition, markStopDone } = useStore();
+  const {
+    role,
+    loading,
+    shipments,
+    addShipment,
+    updateShipment,
+    removeShipment,
+    overridePosition,
+    markStopDone,
+  } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -45,13 +54,13 @@ function DashboardPage() {
 
   return (
     <AppShell>
-      {/* Mobile toggle */}
-      <div className="absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
+      {/* Mobile bottom nav toggle */}
+      <div className=" bottom-4 z-50 border border-border bg-card/90 p-0.5 text-xs backdrop-blur lg:hidden pointer-events-auto">
         {(["map", "list"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setMobileView(v)}
-            className={`rounded-full px-3 py-1 transition-colors ${
+            className={`rounded-full px-3 py-[5px] transition-colors ${
               mobileView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"
             }`}
           >
@@ -76,7 +85,9 @@ function DashboardPage() {
             ].map((s) => (
               <div key={s.k} className="rounded-lg border border-border bg-card/60 p-2 text-center">
                 <div className={`text-xl font-semibold tabular-nums ${s.c}`}>{s.v}</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.k}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {s.k}
+                </div>
               </div>
             ))}
           </div>
@@ -84,11 +95,17 @@ function DashboardPage() {
           <div className="flex items-center justify-between px-4 pt-4">
             <h2 className="text-sm font-semibold">Идэвхтэй ачаанууд</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => setFocus(undefined)} className="text-xs text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => setFocus(undefined)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
                 Бүгд
               </button>
               <button
-                onClick={() => { setEditing(null); setFormOpen(true); }}
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
                 className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
               >
                 + Шинэ
@@ -105,7 +122,11 @@ function DashboardPage() {
                 <motion.button
                   layout
                   key={s.id}
-                  onClick={() => { setFocus(s.id); setDetailId(s.id); setMobileView("map"); }}
+                  onClick={() => {
+                    setFocus(s.id);
+                    setDetailId(s.id);
+                    setMobileView("map");
+                  }}
                   className={`glass w-full rounded-xl p-3 text-left transition-all ${
                     active ? "ring-2 ring-primary/60 glow" : "hover:border-border"
                   }`}
@@ -116,12 +137,18 @@ function DashboardPage() {
                       <div className="mt-0.5 text-sm font-medium">{s.cargo}</div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>{meta.label}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>
+                        {meta.label}
+                      </span>
                       {s.type === "wagon" && (
-                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">EST</span>
+                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
+                          EST
+                        </span>
                       )}
                       {gpsOff && (
-                        <span className="rounded-full border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 text-[9px] text-destructive">GPS OFF</span>
+                        <span className="rounded-full border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 text-[9px] text-destructive">
+                          GPS OFF
+                        </span>
                       )}
                     </div>
                   </div>
@@ -138,8 +165,12 @@ function DashboardPage() {
                     />
                   </div>
                   <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
-                    <span>{s.driver} · {s.vehicleId}</span>
-                    <span>{s.speed} км/ц · ETA {s.eta}</span>
+                    <span>
+                      {s.driver} · {s.vehicleId}
+                    </span>
+                    <span>
+                      {s.speed} км/ц · ETA {s.eta}
+                    </span>
                   </div>
                 </motion.button>
               );
@@ -152,7 +183,10 @@ function DashboardPage() {
           <FleetMap
             shipments={shipments}
             focusId={focus}
-            onSelect={(id) => { setFocus(id); setDetailId(id); }}
+            onSelect={(id) => {
+              setFocus(id);
+              setDetailId(id);
+            }}
             editable
             onDragEnd={(id, pos) => overridePosition(id, pos)}
           />
