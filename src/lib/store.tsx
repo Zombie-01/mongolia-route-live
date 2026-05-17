@@ -29,6 +29,9 @@ interface StoreState {
   sharingIds: Set<string>;
 
   setGpsOnline: (id: string, online: boolean) => void;
+  startRealGps: (id: string) => void;
+  stopRealGps: (id: string) => void;
+  realGpsActive: Set<string>;
 
   addShipment: (s: Shipment) => void;
   updateShipment: (id: string, patch: Partial<Shipment>) => void;
@@ -115,8 +118,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [authMode, setAuthMode] = useState<"supabase" | "mock">("supabase");
   const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
+  const [realGpsActive, setRealGpsActive] = useState<Set<string>>(new Set());
   const [dbReady, setDbReady] = useState(false);
   const tickRef = useRef<number | null>(null);
+  const gpsWatchers = useRef<Map<string, number>>(new Map());
 
   const loadShipmentsFromDb = useCallback(async () => {
     try {
@@ -213,6 +218,111 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // ---------------- Real GPS via browser Geolocation API ----------------
+  const startRealGps = useCallback((id: string) => {
+    if (gpsWatchers.current.has(id)) return;
+    if (!navigator.geolocation) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const speed = pos.coords.speed; // m/s, can be null
+        const gpsPos: LatLng = [lat, lng];
+
+        setShipments((prev) =>
+          prev.map((s) => {
+            if (s.id !== id) return s;
+            if (s.type === "wagon") return s; // wagons don't use GPS
+
+            const path = s.roadRoute ?? s.route;
+            const snap = nearestOnRoute(path, gpsPos);
+            const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
+
+            return {
+              ...s,
+              position: snap.pos,
+              progress: snap.t,
+              speed: kmh,
+              gpsOnline: true,
+              lastGpsAt: new Date().toISOString(),
+              lastKnownPos: snap.pos,
+              manualOverride: false,
+            };
+          }),
+        );
+      },
+      (err) => {
+        console.warn("[GPS] geolocation error:", err.message);
+        // GPS failed — mark offline
+        setShipments((prev) =>
+          prev.map((s) => {
+            if (s.id !== id) return s;
+            return { ...s, gpsOnline: false, speed: 0 };
+          }),
+        );
+        setRealGpsActive((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 15000,
+      },
+    );
+
+    gpsWatchers.current.set(id, watchId);
+    setRealGpsActive((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    setShipments((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        return { ...s, gpsOnline: true, lastGpsAt: new Date().toISOString() };
+      }),
+    );
+  }, []);
+
+  const stopRealGps = useCallback((id: string) => {
+    const watchId = gpsWatchers.current.get(id);
+    if (watchId != null) {
+      navigator.geolocation.clearWatch(watchId);
+      gpsWatchers.current.delete(id);
+    }
+    setRealGpsActive((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    // Save last known position
+    setShipments((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        return {
+          ...s,
+          gpsOnline: false,
+          lastKnownPos: s.position,
+          speed: 0,
+        };
+      }),
+    );
+  }, []);
+
+  // Cleanup GPS watchers on unmount
+  useEffect(() => {
+    return () => {
+      for (const [_, watchId] of gpsWatchers.current) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+      gpsWatchers.current.clear();
+    };
+  }, []);
+
   // ---------------- Auth bootstrap ----------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -294,6 +404,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [dbReady]);
 
   // ---------------- Simulation loop ----------------
+  // Only simulates shipments that do NOT have real GPS active.
+  // Trucks with real GPS: position comes from Geolocation API.
+  // Trucks with GPS offline: frozen at lastKnownPos.
+  // Wagons: always time-based estimation.
   useEffect(() => {
     const tick = () => {
       setShipments((prev) =>
@@ -320,12 +434,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             };
           }
 
+          // Trucks with real GPS active: skip simulation (position from Geolocation)
+          if (realGpsActive.has(s.id)) return s;
+
           // Trucks with GPS offline: freeze at lastKnownPos
           if (s.gpsOnline === false) {
             return s;
           }
 
-          // Trucks with GPS online: advance normally
+          // Trucks with GPS online (simulation mode): advance normally
           const jitter = 0.002 + Math.random() * 0.004;
           const newProgress = Math.min(1, s.progress + jitter);
           const newPos = pointOnRoute(path, newProgress);
@@ -348,7 +465,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       if (tickRef.current) window.clearInterval(tickRef.current);
     };
-  }, []);
+  }, [realGpsActive]);
 
   // ---------------- Auth actions ----------------
   const loginDemo = async (r: Role) => {
@@ -380,6 +497,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
+    // Stop all GPS watchers
+    for (const [_, watchId] of gpsWatchers.current) {
+      navigator.geolocation.clearWatch(watchId);
+    }
+    gpsWatchers.current.clear();
+    setRealGpsActive(new Set());
     setRole(null);
     setName(null);
   };
@@ -403,7 +526,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       prev.map((s) => {
         if (s.id !== id) return s;
         if (online) {
-          // GPS resumes: jump to last known position, snap to route
           const resumePos = s.lastKnownPos ?? s.position;
           const path = s.roadRoute ?? s.route;
           const snap = nearestOnRoute(path, resumePos);
@@ -415,7 +537,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             lastKnownPos: snap.pos,
           };
         }
-        // GPS goes offline: save current position as lastKnown
         return {
           ...s,
           gpsOnline: false,
@@ -473,11 +594,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const removeShipment = (id: string) => {
+    stopRealGps(id);
     setShipments((prev) => prev.filter((s) => s.id !== id));
     supabase.from("shipments").delete().eq("id", id).then(() => {});
   };
 
-  // Admin override: drag marker along route — snaps to nearest point on route
   const overridePosition = (id: string, pos: LatLng) => {
     setShipments((prev) =>
       prev.map((s) => {
@@ -554,6 +675,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toggleSharing,
         sharingIds,
         setGpsOnline,
+        startRealGps,
+        stopRealGps,
+        realGpsActive,
         addShipment,
         updateShipment,
         removeShipment,
