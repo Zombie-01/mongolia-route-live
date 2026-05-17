@@ -101,7 +101,7 @@ begin
         created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token
       ) values (
         '00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated',
-        demo.email, crypt('demo1234', gen_salt('bf')),
+        demo.email, extensions.crypt('demo1234'::text, extensions.gen_salt('bf')::text),
         now(),
         jsonb_build_object('provider','email','providers',array['email']),
         jsonb_build_object('display_name', demo.display_name, 'role', demo.role::text),

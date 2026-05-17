@@ -1,7 +1,14 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  initialShipments,
   pointOnRoute,
   fetchRoadRoute,
   nearestOnRoute,
@@ -55,10 +62,7 @@ const DEMO_NAMES: Record<Role, string> = {
   customer: "Харилцагч Демо",
 };
 
-function dbToShipment(
-  row: Record<string, unknown>,
-  stops: Record<string, unknown>[],
-): Shipment {
+function dbToShipment(row: Record<string, unknown>, stops: Record<string, unknown>[]): Shipment {
   const route = (row.route as LatLng[]) ?? [];
   const roadRoute = (row.road_route as LatLng[] | null) ?? undefined;
   const position = (row.position as LatLng) ?? route[0] ?? [47.9184, 106.9177];
@@ -116,7 +120,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState<"supabase" | "mock">("supabase");
-  const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
+  const [shipments, setShipments] = useState<Shipment[]>([]); // Start with empty array, load from DB
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
   const [realGpsActive, setRealGpsActive] = useState<Set<string>>(new Set());
   const [dbReady, setDbReady] = useState(false);
@@ -338,7 +342,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setRole(r);
         setAuthMode("supabase");
       } catch {
-        const inferred = (Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] ?? "customer") as Role;
+        const inferred = (Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] ??
+          "customer") as Role;
         setRole(inferred);
         setAuthMode("mock");
       }
@@ -350,7 +355,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .maybeSingle();
         setName(profile?.display_name ?? email ?? "Хэрэглэгч");
       } catch {
-        setName(email ? (DEMO_NAMES[Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] as Role] ?? email) : "Хэрэглэгч");
+        setName(
+          email
+            ? (DEMO_NAMES[Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] as Role] ??
+                email)
+            : "Хэрэглэгч",
+        );
       }
     };
 
@@ -378,9 +388,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------------- Load from DB on auth ----------------
   useEffect(() => {
-    if (!role || authMode !== "supabase") return;
+    if (!role) return;
+    // Always try to load from DB, regardless of auth mode
     loadShipmentsFromDb();
-  }, [role, authMode, loadShipmentsFromDb]);
+  }, [role, loadShipmentsFromDb]);
 
   // ---------------- Road geometry (background) ----------------
   useEffect(() => {
@@ -596,7 +607,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const removeShipment = (id: string) => {
     stopRealGps(id);
     setShipments((prev) => prev.filter((s) => s.id !== id));
-    supabase.from("shipments").delete().eq("id", id).then(() => {});
+    supabase
+      .from("shipments")
+      .delete()
+      .eq("id", id)
+      .then(() => {});
   };
 
   const overridePosition = (id: string, pos: LatLng) => {
