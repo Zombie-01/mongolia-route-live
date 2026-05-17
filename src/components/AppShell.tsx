@@ -3,7 +3,7 @@ import { useStore } from "@/lib/store";
 import { motion } from "framer-motion";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { role, name, logout } = useStore();
+  const { role, name, logout, authMode } = useStore();
   const nav = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
 
@@ -51,7 +51,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="relative inline-block h-2 w-2 rounded-full bg-primary text-primary pulse-ring" />
             <span className="text-muted-foreground">Шууд дамжуулалт идэвхтэй</span>
           </motion.div>
-          <span className="hidden text-xs text-muted-foreground sm:inline">{name}</span>
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            {name}
+            {authMode === "mock" && (
+              <span className="ml-1.5 rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">MOCK</span>
+            )}
+          </span>
           <button
             onClick={() => {
               logout();

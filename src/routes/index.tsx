@@ -16,7 +16,7 @@ const roles: { id: Role; label: string; emoji: string; desc: string; to: string 
 ];
 
 function LoginPage() {
-  const { loginDemo, role } = useStore();
+  const { loginDemo, role, authMode } = useStore();
   const nav = useNavigate();
   const [loading, setLoading] = useState<Role | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -108,7 +108,9 @@ function LoginPage() {
         )}
 
         <div className="mt-8 text-center text-xs text-muted-foreground">
-          Demo бүртгэлүүд автоматаар үүсгэгдсэн · Lovable Cloud-р баталгаажуулна
+          {authMode === "supabase"
+            ? "Supabase Cloud-р нэвтэрсэн · Бодит хэрэглэгчид"
+            : "Demo горим · Supabase Cloud холбогдоогүй тул mock нэвтрэлт ашиглаж байна"}
         </div>
       </motion.div>
 

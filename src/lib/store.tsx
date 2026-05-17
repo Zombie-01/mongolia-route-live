@@ -17,6 +17,7 @@ interface StoreState {
   loading: boolean;
   loginDemo: (role: Role) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  authMode: "supabase" | "mock";
 
   shipments: Shipment[];
   setStatus: (id: string, status: ShipmentStatus) => void;
@@ -42,32 +43,51 @@ const DEMO_EMAILS: Record<Role, string> = {
   driver: "driver@demo.mn",
   customer: "customer@demo.mn",
 };
+const DEMO_NAMES: Record<Role, string> = {
+  admin: "Админ Демо",
+  driver: "Жолооч Демо",
+  customer: "Харилцагч Демо",
+};
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"supabase" | "mock">("supabase");
   const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set(["s1"]));
   const tickRef = useRef<number | null>(null);
 
-  // ---------------- Auth bootstrap (real Supabase) ----------------
+  // ---------------- Auth bootstrap (real Supabase + mock fallback) ----------------
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const resolveRole = async (userId: string, email: string | null) => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      const r = (data?.[0]?.role as Role | undefined) ?? "customer";
-      setRole(r);
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", userId)
-        .maybeSingle();
-      setName(profile?.display_name ?? email ?? "Хэрэглэгч");
+      try {
+        const { data, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
+        if (error) throw error;
+        const r = (data?.[0]?.role as Role | undefined) ?? "customer";
+        setRole(r);
+        setAuthMode("supabase");
+      } catch {
+        // RLS or network issue — infer role from email convention
+        const inferred = (Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] ?? "customer") as Role;
+        setRole(inferred);
+        setAuthMode("mock");
+      }
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", userId)
+          .maybeSingle();
+        setName(profile?.display_name ?? email ?? "Хэрэглэгч");
+      } catch {
+        setName(email ? (DEMO_NAMES[Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] as Role] ?? email) : "Хэрэглэгч");
+      }
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -156,16 +176,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ---------------- Auth actions ----------------
   const loginDemo = async (r: Role) => {
     const email = DEMO_EMAILS[r];
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: DEMO_PASSWORD,
-    });
-    if (error) return { error: error.message };
-    return {};
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: DEMO_PASSWORD,
+      });
+      if (error) {
+        // Supabase auth failed — fall back to mock mode
+        setRole(r);
+        setName(DEMO_NAMES[r]);
+        setAuthMode("mock");
+        return {};
+      }
+      setAuthMode("supabase");
+      return {};
+    } catch {
+      // Network or config error — mock fallback
+      setRole(r);
+      setName(DEMO_NAMES[r]);
+      setAuthMode("mock");
+      return {};
+    }
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     setRole(null);
     setName(null);
   };
@@ -280,6 +319,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         loading,
         loginDemo,
         logout,
+        authMode,
         shipments,
         setStatus,
         toggleSharing,
