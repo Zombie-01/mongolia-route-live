@@ -36,6 +36,13 @@ export interface Shipment {
   type?: VehicleType;
   country?: "MN" | "RU" | "CN";
 
+  // GPS state — when offline, freeze position; trucks resume from lastKnown on reconnect.
+  // Wagons have type==="wagon" → always treated as "no GPS" (system estimates by time).
+  gpsOnline?: boolean;
+  lastGpsAt?: string;     // ISO timestamp of last successful GPS
+  lastKnownPos?: LatLng;
+  manualOverride?: boolean; // true if admin set position manually
+
   // Detailed driver info
   driverPhone: string;
   driverLicense: string;
@@ -495,6 +502,41 @@ initialShipments.slice(0, 5).forEach((s) => {
   s.type = "truck";
   s.country = "MN";
 });
+
+// Default GPS state: trucks online, wagons "no GPS" (estimated by time).
+initialShipments.forEach((s) => {
+  s.gpsOnline = s.type !== "wagon";
+  s.lastGpsAt = new Date().toISOString();
+  s.lastKnownPos = s.position;
+});
+
+// Nearest point on a polyline (projects p onto each segment, returns closest).
+export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: number } {
+  let best = { pos: route[0], t: 0, d: Infinity };
+  let acc = 0;
+  let total = 0;
+  for (let i = 0; i < route.length - 1; i++) {
+    total += Math.hypot(route[i + 1][0] - route[i][0], route[i + 1][1] - route[i][1]);
+  }
+  for (let i = 0; i < route.length - 1; i++) {
+    const [ax, ay] = route[i];
+    const [bx, by] = route[i + 1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy || 1e-9;
+    let u = ((p[0] - ax) * dx + (p[1] - ay) * dy) / len2;
+    u = Math.max(0, Math.min(1, u));
+    const px = ax + dx * u;
+    const py = ay + dy * u;
+    const d = Math.hypot(p[0] - px, p[1] - py);
+    const segLen = Math.sqrt(len2);
+    if (d < best.d) {
+      best = { pos: [px, py], t: total > 0 ? (acc + segLen * u) / total : 0, d };
+    }
+    acc += segLen;
+  }
+  return { pos: best.pos, t: best.t };
+}
 
 export function pointOnRoute(route: LatLng[], t: number): LatLng {
   if (t <= 0) return route[0];

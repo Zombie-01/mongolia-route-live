@@ -11,17 +11,21 @@ export const Route = createFileRoute("/driver")({
 });
 
 function DriverPage() {
-  const { role, shipments, setStatus, sharingIds, toggleSharing } = useStore();
+  const { role, loading, shipments, setStatus, sharingIds, toggleSharing, setGpsOnline } = useStore();
   const nav = useNavigate();
   const [active, setActive] = useState("s1");
 
   useEffect(() => {
+    if (loading) return;
     if (!role) nav({ to: "/" });
-  }, [role, nav]);
+  }, [role, loading, nav]);
+
+  if (loading || !role) return null;
 
   const myShipments = shipments.slice(0, 2);
   const current = shipments.find((s) => s.id === active) ?? myShipments[0];
   const sharing = sharingIds.has(current.id);
+  const gpsOnline = current.gpsOnline !== false && current.type !== "wagon";
 
   const statusBtns: { v: ShipmentStatus; label: string }[] = [
     { v: "in_transit", label: "Замд" },
@@ -40,21 +44,27 @@ function DriverPage() {
                 <div className="mt-1 text-lg font-semibold">{current.trackingId}</div>
               </div>
               <button
-                onClick={() => toggleSharing(current.id)}
+                onClick={() => {
+                  toggleSharing(current.id);
+                  if (current.type !== "wagon") setGpsOnline(current.id, !gpsOnline);
+                }}
                 className={`relative h-7 w-12 rounded-full transition-colors ${
-                  sharing ? "bg-primary" : "bg-secondary"
+                  sharing && gpsOnline ? "bg-primary" : "bg-secondary"
                 }`}
                 aria-label="GPS sharing"
               >
                 <motion.span
                   layout
                   className="absolute top-0.5 h-6 w-6 rounded-full bg-background shadow"
-                  animate={{ left: sharing ? 22 : 2 }}
+                  animate={{ left: sharing && gpsOnline ? 22 : 2 }}
                 />
               </button>
             </div>
             <div className="mt-3 text-sm text-muted-foreground">
-              GPS дамжуулалт <span className={sharing ? "text-primary" : "text-warning"}>{sharing ? "идэвхтэй" : "идэвхгүй"}</span>
+              GPS дамжуулалт{" "}
+              <span className={gpsOnline ? "text-primary" : "text-warning"}>
+                {current.type === "wagon" ? "вагон — цагаар тооцоолно" : gpsOnline ? "идэвхтэй" : "тасарсан (сүүлийн байршил хадгалагдсан)"}
+              </span>
             </div>
 
             <div className="mt-5 space-y-2 text-sm">
