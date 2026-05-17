@@ -11,17 +11,21 @@ export const Route = createFileRoute("/driver")({
 });
 
 function DriverPage() {
-  const { role, shipments, setStatus, sharingIds, toggleSharing } = useStore();
+  const { role, loading, shipments, setStatus, sharingIds, toggleSharing, setGpsOnline } = useStore();
   const nav = useNavigate();
   const [active, setActive] = useState("s1");
 
   useEffect(() => {
+    if (loading) return;
     if (!role) nav({ to: "/" });
-  }, [role, nav]);
+  }, [role, loading, nav]);
+
+  if (loading || !role) return null;
 
   const myShipments = shipments.slice(0, 2);
   const current = shipments.find((s) => s.id === active) ?? myShipments[0];
   const sharing = sharingIds.has(current.id);
+  const gpsOnline = current.gpsOnline !== false && current.type !== "wagon";
 
   const statusBtns: { v: ShipmentStatus; label: string }[] = [
     { v: "in_transit", label: "Замд" },
