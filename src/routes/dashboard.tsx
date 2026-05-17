@@ -45,9 +45,28 @@ function DashboardPage() {
 
   return (
     <AppShell>
+      {/* Mobile toggle */}
+      <div className="absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
+        {(["map", "list"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setMobileView(v)}
+            className={`rounded-full px-3 py-1 transition-colors ${
+              mobileView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {v === "map" ? "🗺 Газрын зураг" : "📋 Жагсаалт"}
+          </button>
+        ))}
+      </div>
+
       <div className="grid h-full grid-cols-1 lg:grid-cols-[380px_1fr]">
-        {/* Sidebar */}
-        <aside className="z-10 flex flex-col overflow-hidden border-r border-border bg-background/40 backdrop-blur">
+        {/* Sidebar / List */}
+        <aside
+          className={`z-10 flex flex-col overflow-hidden border-r border-border bg-background/40 backdrop-blur ${
+            mobileView === "list" ? "flex" : "hidden lg:flex"
+          }`}
+        >
           <div className="grid grid-cols-4 gap-2 border-b border-border p-4">
             {[
               { k: "Нийт", v: shipments.length, c: "text-foreground" },
@@ -81,11 +100,12 @@ function DashboardPage() {
             {shipments.map((s) => {
               const meta = statusMeta[s.status];
               const active = focus === s.id;
+              const gpsOff = s.type !== "wagon" && s.gpsOnline === false;
               return (
                 <motion.button
                   layout
                   key={s.id}
-                  onClick={() => { setFocus(s.id); setDetailId(s.id); }}
+                  onClick={() => { setFocus(s.id); setDetailId(s.id); setMobileView("map"); }}
                   className={`glass w-full rounded-xl p-3 text-left transition-all ${
                     active ? "ring-2 ring-primary/60 glow" : "hover:border-border"
                   }`}
@@ -95,7 +115,15 @@ function DashboardPage() {
                       <div className="text-xs text-muted-foreground">{s.trackingId}</div>
                       <div className="mt-0.5 text-sm font-medium">{s.cargo}</div>
                     </div>
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>{meta.label}</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>{meta.label}</span>
+                      {s.type === "wagon" && (
+                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">EST</span>
+                      )}
+                      {gpsOff && (
+                        <span className="rounded-full border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 text-[9px] text-destructive">GPS OFF</span>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span>{s.origin}</span>
@@ -120,8 +148,14 @@ function DashboardPage() {
         </aside>
 
         {/* Map */}
-        <div className="relative">
-          <FleetMap shipments={shipments} focusId={focus} onSelect={(id) => { setFocus(id); setDetailId(id); }} />
+        <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
+          <FleetMap
+            shipments={shipments}
+            focusId={focus}
+            onSelect={(id) => { setFocus(id); setDetailId(id); }}
+            editable
+            onDragEnd={(id, pos) => overridePosition(id, pos)}
+          />
           <ShipmentDetailModal
             shipment={detail}
             onClose={() => setDetailId(null)}
@@ -133,7 +167,6 @@ function DashboardPage() {
               setFormOpen(true);
             }}
             onDelete={(id) => removeShipment(id)}
-            onOverrideGPS={(id, lat, lng) => overridePosition(id, [lat, lng])}
           />
           <ShipmentFormModal
             open={formOpen}
@@ -144,8 +177,8 @@ function DashboardPage() {
               else addShipment(s);
             }}
           />
-          <div className="glass pointer-events-none absolute left-4 top-4 rounded-xl px-3 py-2 text-xs text-muted-foreground">
-            OpenStreetMap · Шууд GPS симуляц · Шинэчлэлт 3 секунд тутамд
+          <div className="glass pointer-events-none absolute left-4 top-14 hidden rounded-xl px-3 py-2 text-xs text-muted-foreground lg:top-4 lg:block">
+            🛰 Шууд GPS · 🚆 Вагон = цагаар тооцоологдоно · Админ маркерыг чирж байршил шинэчилнэ
           </div>
         </div>
       </div>
