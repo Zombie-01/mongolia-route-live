@@ -36,6 +36,13 @@ export interface Shipment {
   type?: VehicleType;
   country?: "MN" | "RU" | "CN";
 
+  // GPS state — when offline, freeze position; trucks resume from lastKnown on reconnect.
+  // Wagons have type==="wagon" → always treated as "no GPS" (system estimates by time).
+  gpsOnline?: boolean;
+  lastGpsAt?: string;     // ISO timestamp of last successful GPS
+  lastKnownPos?: LatLng;
+  manualOverride?: boolean; // true if admin set position manually
+
   // Detailed driver info
   driverPhone: string;
   driverLicense: string;
