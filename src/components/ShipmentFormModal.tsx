@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CITIES, etaFromKm, suggestWaypoints, totalRouteKm, findCity } from "@/lib/cities";
-import type { CargoItem, LatLng, Shipment, ShipmentStatus, VehicleType, Dropoff } from "@/lib/demo-data";
+import type {
+  CargoItem,
+  LatLng,
+  Shipment,
+  ShipmentStatus,
+  VehicleType,
+  Dropoff,
+} from "@/lib/demo-data";
 
 interface Props {
   open: boolean;
@@ -80,10 +87,14 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       .filter((n): n is string => Boolean(n));
   }, [originCity, destCity]);
 
-  useEffect(() => {
-    if (!open) return;
-    setWaypointNames(autoSuggested);
-  }, [autoSuggested, open]);
+  useEffect(
+    () => {
+      // Do not auto-apply suggestions on every recompute — user can apply via button.
+    },
+    [
+      /* intentionally empty */
+    ],
+  );
 
   const computed = useMemo(() => {
     if (!originCity || !destCity) return null;
@@ -105,7 +116,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   };
 
   const updateItem = (i: number, patch: Partial<CargoItem>) =>
-    setForm((f) => ({ ...f, cargoItems: f.cargoItems.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }));
+    setForm((f) => ({
+      ...f,
+      cargoItems: f.cargoItems.map((c, idx) => (idx === i ? { ...c, ...patch } : c)),
+    }));
 
   const addItem = () =>
     setForm((f) => ({ ...f, cargoItems: [...f.cargoItems, { name: "", qty: 1 }] }));
@@ -127,7 +141,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   };
 
   const updateDropoff = (i: number, patch: Partial<Dropoff>) =>
-    setForm((f) => ({ ...f, dropoffs: f.dropoffs.map((d, idx) => (idx === i ? { ...d, ...patch } : d)) }));
+    setForm((f) => ({
+      ...f,
+      dropoffs: f.dropoffs.map((d, idx) => (idx === i ? { ...d, ...patch } : d)),
+    }));
 
   const removeDropoff = (i: number) =>
     setForm((f) => ({ ...f, dropoffs: f.dropoffs.filter((_, idx) => idx !== i) }));
@@ -146,7 +163,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       ...f,
       dropoffs: f.dropoffs.map((d, idx) =>
         idx === dropIdx
-          ? { ...d, items: d.items.map((it, iidx) => (iidx === itemIdx ? { ...it, ...patch } : it)) }
+          ? {
+              ...d,
+              items: d.items.map((it, iidx) => (iidx === itemIdx ? { ...it, ...patch } : it)),
+            }
           : d,
       ),
     }));
@@ -242,7 +262,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                   <Field label="Илгээх улс">
                     <select
                       value={form.country}
-                      onChange={(e) => setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })}
+                      onChange={(e) =>
+                        setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })
+                      }
                       className="inp"
                     >
                       <option value="MN">🇲🇳 Монгол</option>
@@ -251,12 +273,18 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                     </select>
                   </Field>
                   <Field label="Ачааны нэр" wide>
-                    <input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} className="inp" />
+                    <input
+                      value={form.cargo}
+                      onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Төлөв">
                     <select
                       value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value as ShipmentStatus })}
+                      onChange={(e) =>
+                        setForm({ ...form, status: e.target.value as ShipmentStatus })
+                      }
                       className="inp"
                     >
                       <option value="in_transit">Замд</option>
@@ -271,16 +299,28 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title="Маршрут">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Эхлэх хот">
-                    <select value={originName} onChange={(e) => setOriginName(e.target.value)} className="inp">
+                    <select
+                      value={originName}
+                      onChange={(e) => setOriginName(e.target.value)}
+                      className="inp"
+                    >
                       {CITIES.map((c) => (
-                        <option key={c.name} value={c.name}>{c.name}</option>
+                        <option key={c.name} value={c.name}>
+                          {c.name}
+                        </option>
                       ))}
                     </select>
                   </Field>
                   <Field label="Хүрэх хот">
-                    <select value={destName} onChange={(e) => setDestName(e.target.value)} className="inp">
+                    <select
+                      value={destName}
+                      onChange={(e) => setDestName(e.target.value)}
+                      className="inp"
+                    >
                       {CITIES.map((c) => (
-                        <option key={c.name} value={c.name}>{c.name}</option>
+                        <option key={c.name} value={c.name}>
+                          {c.name}
+                        </option>
                       ))}
                     </select>
                   </Field>
@@ -300,26 +340,41 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-card/40 p-2">
-                    {CITIES.filter((c) => c.name !== originName && c.name !== destName).map((c) => {
-                      const active = waypointNames.includes(c.name);
-                      const suggested = autoSuggested.includes(c.name);
-                      return (
-                        <button
-                          key={c.name}
-                          type="button"
-                          onClick={() => toggleWaypoint(c.name)}
-                          className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                            active
-                              ? "border-primary/50 bg-primary/20 text-primary"
-                              : suggested
-                                ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
-                                : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          {c.name}
-                        </button>
+                    {/* Show suggested cities first, then a limited set of other cities for performance */}
+                    {(() => {
+                      const otherCities = CITIES.filter(
+                        (c) => c.name !== originName && c.name !== destName,
                       );
-                    })}
+                      const suggestedNames = autoSuggested.filter((n) =>
+                        otherCities.some((c) => c.name === n),
+                      );
+                      const remaining = otherCities
+                        .filter((c) => !suggestedNames.includes(c.name))
+                        .slice(0, 18);
+                      const displayed = [...suggestedNames, ...remaining.map((c) => c.name)];
+
+                      return displayed.map((name) => {
+                        const c = CITIES.find((x) => x.name === name)!;
+                        const active = waypointNames.includes(c.name);
+                        const suggested = suggestedNames.includes(c.name);
+                        return (
+                          <button
+                            key={c.name}
+                            type="button"
+                            onClick={() => toggleWaypoint(c.name)}
+                            className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                              active
+                                ? "border-primary/50 bg-primary/20 text-primary"
+                                : suggested
+                                  ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+                                  : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
 
@@ -335,22 +390,48 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title="Жолооч / Бригад">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Field label="Нэр" wide>
-                    <input value={form.driver} onChange={(e) => setForm({ ...form, driver: e.target.value })} className="inp" />
+                    <input
+                      value={form.driver}
+                      onChange={(e) => setForm({ ...form, driver: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Утас">
-                    <input value={form.driverPhone} onChange={(e) => setForm({ ...form, driverPhone: e.target.value })} className="inp" />
+                    <input
+                      value={form.driverPhone}
+                      onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Үнэмлэх">
-                    <input value={form.driverLicense} onChange={(e) => setForm({ ...form, driverLicense: e.target.value })} className="inp" />
+                    <input
+                      value={form.driverLicense}
+                      onChange={(e) => setForm({ ...form, driverLicense: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Туршлага">
-                    <input value={form.driverExperience} onChange={(e) => setForm({ ...form, driverExperience: e.target.value })} className="inp" />
+                    <input
+                      value={form.driverExperience}
+                      onChange={(e) => setForm({ ...form, driverExperience: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Улсын дугаар">
-                    <input value={form.plateNumber} onChange={(e) => setForm({ ...form, plateNumber: e.target.value, vehicleId: e.target.value })} className="inp" />
+                    <input
+                      value={form.plateNumber}
+                      onChange={(e) =>
+                        setForm({ ...form, plateNumber: e.target.value, vehicleId: e.target.value })
+                      }
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Даац">
-                    <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="inp" />
+                    <input
+                      value={form.capacity}
+                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                 </div>
               </Section>
@@ -358,15 +439,25 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title="Талууд">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Илгээгч">
-                    <input value={form.shipper} onChange={(e) => setForm({ ...form, shipper: e.target.value })} className="inp" />
+                    <input
+                      value={form.shipper}
+                      onChange={(e) => setForm({ ...form, shipper: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Хүлээн авагч">
-                    <input value={form.consignee} onChange={(e) => setForm({ ...form, consignee: e.target.value })} className="inp" />
+                    <input
+                      value={form.consignee}
+                      onChange={(e) => setForm({ ...form, consignee: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                 </div>
               </Section>
 
-              <Section title={`Ачаа (${form.cargoItems.reduce((s, c) => s + (Number(c.qty) || 0), 0)} тн)`}>
+              <Section
+                title={`Ачаа (${form.cargoItems.reduce((s, c) => s + (Number(c.qty) || 0), 0)} тн)`}
+              >
                 <div className="space-y-2">
                   {form.cargoItems.map((c, i) => (
                     <div key={i} className="grid grid-cols-[1fr_90px_1fr_auto] gap-2">
@@ -439,7 +530,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                           >
                             <option value="">-- Сонгох --</option>
                             {CITIES.map((c) => (
-                              <option key={c.name} value={c.name}>{c.name}</option>
+                              <option key={c.name} value={c.name}>
+                                {c.name}
+                              </option>
                             ))}
                           </select>
                         </Field>
@@ -454,7 +547,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                       </div>
                       {/* Items for this dropoff */}
                       <div className="mt-2 space-y-1.5">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Буулгах ачаа</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Буулгах ачаа
+                        </div>
                         {d.items.map((it, j) => (
                           <div key={j} className="grid grid-cols-[1fr_70px_auto] gap-1.5">
                             <input
@@ -467,7 +562,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                               type="number"
                               min={0}
                               value={it.qty}
-                              onChange={(e) => updateDropoffItem(i, j, { qty: Number(e.target.value) })}
+                              onChange={(e) =>
+                                updateDropoffItem(i, j, { qty: Number(e.target.value) })
+                              }
                               className="inp text-xs tabular-nums"
                             />
                             <button
@@ -501,7 +598,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-border bg-background/40 p-4">
-              <button onClick={onClose} className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm">
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm"
+              >
                 Болих
               </button>
               <button
@@ -526,13 +626,23 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       {children}
     </div>
   );
 }
 
-function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+function Field({
+  label,
+  children,
+  wide,
+}: {
+  label: string;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
   return (
     <div className={wide ? "sm:col-span-2" : ""}>
       <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
