@@ -20,7 +20,7 @@ const statusMeta: Record<Shipment["status"], { label: string; cls: string }> = {
 };
 
 function DashboardPage() {
-  const { role, loading, shipments, addShipment, updateShipment, removeShipment, overridePosition } = useStore();
+  const { role, loading, shipments, addShipment, updateShipment, removeShipment, overridePosition, markStopDone } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -167,6 +167,7 @@ function DashboardPage() {
               setFormOpen(true);
             }}
             onDelete={(id) => removeShipment(id)}
+            onMarkStopDone={markStopDone}
           />
           <ShipmentFormModal
             open={formOpen}

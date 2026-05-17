@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, Marker, useMap, CircleMarker } from "react-leaflet";
 import L from "leaflet";
 import { nearestOnRoute, type LatLng, type Shipment } from "@/lib/demo-data";
 
-// Fix default icon URLs for bundlers
 if (typeof window !== "undefined") {
   delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 }
@@ -39,6 +38,15 @@ function makeTruckIcon(s: Shipment, draggable: boolean) {
   });
 }
 
+function makeStopIcon(done: boolean) {
+  return L.divIcon({
+    className: "",
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    html: `<div style="width:16px;height:16px;border-radius:50%;border:2px solid ${done ? "#10b981" : "#3b82f6"};background:${done ? "rgba(16,185,129,.3)" : "rgba(59,130,246,.3)"};box-shadow:0 0 4px ${done ? "#10b981" : "#3b82f6"}"></div>`,
+  });
+}
+
 function FitBounds({ shipments, focusId }: { shipments: Shipment[]; focusId?: string }) {
   const map = useMap();
   const lastFocus = useRef<string | undefined>(undefined);
@@ -67,7 +75,6 @@ interface Props {
   shipments: Shipment[];
   focusId?: string;
   onSelect?: (id: string) => void;
-  /** Allow admin to drag markers; drop snaps to nearest point on route. */
   editable?: boolean;
   onDragEnd?: (id: string, pos: LatLng) => void;
 }
@@ -79,7 +86,7 @@ export function FleetMap({ shipments, focusId, onSelect, editable, onDragEnd }: 
   if (!mounted)
     return (
       <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">
-        Газрын зураг ачаалж байна…
+        Газрын зураг ачаалж байна...
       </div>
     );
   return (
@@ -100,6 +107,16 @@ export function FleetMap({ shipments, focusId, onSelect, editable, onDragEnd }: 
           }}
         />
       ))}
+      {/* Stop markers along route */}
+      {shipments.map((s) =>
+        s.dropoffs.map((d, i) => (
+          <Marker
+            key={`stop-${s.id}-${i}`}
+            position={d.position}
+            icon={makeStopIcon(d.status === "done")}
+          />
+        )),
+      )}
       {shipments.map((s) => (
         <Marker
           key={s.id}

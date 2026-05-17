@@ -28,21 +28,10 @@ interface Props {
   isAdmin?: boolean;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onOverrideGPS?: (id: string, lat: number, lng: number) => void;
+  onMarkStopDone?: (shipmentId: string, stopSeq: number) => void;
 }
 
-export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDelete, onOverrideGPS }: Props) {
-  const [gpsLat, setGpsLat] = useState("");
-  const [gpsLng, setGpsLng] = useState("");
-  const [gpsOpen, setGpsOpen] = useState(false);
-
-  useEffect(() => {
-    if (shipment) {
-      setGpsLat(shipment.position[0].toFixed(5));
-      setGpsLng(shipment.position[1].toFixed(5));
-      setGpsOpen(false);
-    }
-  }, [shipment?.id, shipment]);
+export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDelete, onMarkStopDone }: Props) {
 
   return (
     <AnimatePresence>
@@ -181,7 +170,7 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                 </div>
               </Section>
 
-              {/* Dropoffs */}
+              {/* Dropoffs / Stops */}
               <Section title="Буулгах цэгүүд">
                 <div className="space-y-2">
                   {shipment.dropoffs.map((d, i) => (
@@ -198,15 +187,25 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                             <div className="mt-0.5 text-[11px] text-muted-foreground">Холбогдох: {d.contact}</div>
                           )}
                         </div>
-                        <span
-                          className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] ${
-                            d.status === "done"
-                              ? "border-accent/30 bg-accent/15 text-accent"
-                              : "border-primary/30 bg-primary/15 text-primary"
-                          }`}
-                        >
-                          {d.status === "done" ? "Буулгасан" : "Хүлээгдэж буй"}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isAdmin && d.status !== "done" && onMarkStopDone && (
+                            <button
+                              onClick={() => onMarkStopDone(shipment.id, i + 1)}
+                              className="rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5 text-[10px] text-accent hover:bg-accent/25"
+                            >
+                              Буулгасан
+                            </button>
+                          )}
+                          <span
+                            className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] ${
+                              d.status === "done"
+                                ? "border-accent/30 bg-accent/15 text-accent"
+                                : "border-primary/30 bg-primary/15 text-primary"
+                            }`}
+                          >
+                            {d.status === "done" ? "Буулгасан" : "Хүлээгдэж буй"}
+                          </span>
+                        </div>
                       </div>
                       <ul className="mt-2 space-y-0.5 text-xs">
                         {d.items.map((it, j) => (
@@ -234,59 +233,15 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                 </div>
               </Section>
 
-              {/* Admin: manual GPS override (when network drops) */}
-              {isAdmin && onOverrideGPS && (
-                <Section title="GPS гарын засвар (сүлжээ тасрах үед)">
-                  <div className="rounded-xl border border-warning/30 bg-warning/5 p-3">
-                    {!gpsOpen ? (
-                      <button
-                        onClick={() => setGpsOpen(true)}
-                        className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-foreground hover:border-warning/50"
-                      >
-                        📍 GPS байршил гараар тааруулах
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="text-[11px] text-muted-foreground">
-                          Сүлжээгүй бүсэд жолоочтой утсаар холбогдож одоогийн координатыг шинэчилнэ.
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={gpsLat}
-                            onChange={(e) => setGpsLat(e.target.value)}
-                            placeholder="Lat (47.9184)"
-                            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs tabular-nums outline-none focus:border-primary"
-                          />
-                          <input
-                            value={gpsLng}
-                            onChange={(e) => setGpsLng(e.target.value)}
-                            placeholder="Lng (106.9177)"
-                            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs tabular-nums outline-none focus:border-primary"
-                          />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => setGpsOpen(false)}
-                            className="rounded-md border border-border bg-card/60 px-3 py-1.5 text-xs"
-                          >
-                            Болих
-                          </button>
-                          <button
-                            onClick={() => {
-                              const la = parseFloat(gpsLat);
-                              const ln = parseFloat(gpsLng);
-                              if (Number.isFinite(la) && Number.isFinite(ln)) {
-                                onOverrideGPS(shipment.id, la, ln);
-                                setGpsOpen(false);
-                              }
-                            }}
-                            className="rounded-md bg-warning px-3 py-1.5 text-xs font-medium text-background hover:opacity-90"
-                          >
-                            Шинэчлэх
-                          </button>
-                        </div>
-                      </div>
-                    )}
+              {/* Admin: route-drag override hint */}
+              {isAdmin && (
+                <Section title="Байршил засварлах">
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                    <div className="text-[11px] text-muted-foreground">
+                      Газрын зураг дээр маркерыг чирж замын дагуу байршил шинэчилнэ.
+                      {shipment.type === "wagon" && " Вагон — цагаар тооцоологдоно, GPS байхгүй."}
+                      {shipment.type !== "wagon" && shipment.gpsOnline === false && " GPS тасарсан — сүүлийн байршил дээр зогссон."}
+                    </div>
                   </div>
                 </Section>
               )}

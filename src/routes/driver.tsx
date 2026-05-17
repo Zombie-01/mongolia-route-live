@@ -13,7 +13,8 @@ export const Route = createFileRoute("/driver")({
 function DriverPage() {
   const { role, loading, shipments, setStatus, sharingIds, toggleSharing, setGpsOnline } = useStore();
   const nav = useNavigate();
-  const [active, setActive] = useState("s1");
+  const [active, setActive] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<"map" | "list">("map");
 
   useEffect(() => {
     if (loading) return;
@@ -24,6 +25,7 @@ function DriverPage() {
 
   const myShipments = shipments.slice(0, 2);
   const current = shipments.find((s) => s.id === active) ?? myShipments[0];
+  if (!current) return null;
   const sharing = sharingIds.has(current.id);
   const gpsOnline = current.gpsOnline !== false && current.type !== "wagon";
 
@@ -35,8 +37,27 @@ function DriverPage() {
 
   return (
     <AppShell>
+      {/* Mobile toggle */}
+      <div className="absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
+        {(["map", "list"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setMobileView(v)}
+            className={`rounded-full px-3 py-1 transition-colors ${
+              mobileView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {v === "map" ? "🗺 Газрын зураг" : "📋 Жагсаалт"}
+          </button>
+        ))}
+      </div>
+
       <div className="grid h-full grid-cols-1 lg:grid-cols-[400px_1fr]">
-        <aside className="flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-4 backdrop-blur">
+        <aside
+          className={`z-10 flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-4 backdrop-blur ${
+            mobileView === "list" ? "flex" : "hidden lg:flex"
+          }`}
+        >
           <div className="glass rounded-2xl p-5">
             <div className="flex items-center justify-between">
               <div>
@@ -63,7 +84,11 @@ function DriverPage() {
             <div className="mt-3 text-sm text-muted-foreground">
               GPS дамжуулалт{" "}
               <span className={gpsOnline ? "text-primary" : "text-warning"}>
-                {current.type === "wagon" ? "вагон — цагаар тооцоолно" : gpsOnline ? "идэвхтэй" : "тасарсан (сүүлийн байршил хадгалагдсан)"}
+                {current.type === "wagon"
+                  ? "вагон — цагаар тооцоолно"
+                  : gpsOnline
+                    ? "идэвхтэй"
+                    : "тасарсан (сүүлийн байршил хадгалагдсан)"}
               </span>
             </div>
 
@@ -119,9 +144,9 @@ function DriverPage() {
               {myShipments.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => setActive(s.id)}
+                  onClick={() => { setActive(s.id); setMobileView("map"); }}
                   className={`glass w-full rounded-xl p-3 text-left text-sm transition-colors ${
-                    active === s.id ? "ring-1 ring-primary/50" : ""
+                    current.id === s.id ? "ring-1 ring-primary/50" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -134,7 +159,7 @@ function DriverPage() {
           </div>
         </aside>
 
-        <div className="relative">
+        <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
           <FleetMap shipments={[current]} focusId={current.id} />
         </div>
       </div>

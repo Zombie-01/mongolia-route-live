@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -53,6 +51,153 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      shipments: {
+        Row: {
+          id: string
+          tracking_id: string
+          status: string
+          type: string
+          country: string
+          cargo: string
+          origin: string
+          destination: string
+          route: Json
+          road_route: Json | null
+          progress: number
+          position: Json
+          speed: number
+          eta: string | null
+          driver_name: string
+          driver_phone: string | null
+          driver_license: string | null
+          driver_experience: number | null
+          driver_rating: number | null
+          vehicle_id: string | null
+          plate_number: string | null
+          capacity: string | null
+          total_weight: string | null
+          shipper: string | null
+          consignee: string | null
+          cargo_items: Json
+          gps_online: boolean
+          last_gps_at: string | null
+          last_known_pos: Json | null
+          manual_override: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tracking_id: string
+          status?: string
+          type?: string
+          country?: string
+          cargo?: string
+          origin?: string
+          destination?: string
+          route?: Json
+          road_route?: Json | null
+          progress?: number
+          position?: Json
+          speed?: number
+          eta?: string | null
+          driver_name?: string
+          driver_phone?: string | null
+          driver_license?: string | null
+          driver_experience?: number | null
+          driver_rating?: number | null
+          vehicle_id?: string | null
+          plate_number?: string | null
+          capacity?: string | null
+          total_weight?: string | null
+          shipper?: string | null
+          consignee?: string | null
+          cargo_items?: Json
+          gps_online?: boolean
+          last_gps_at?: string | null
+          last_known_pos?: Json | null
+          manual_override?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tracking_id?: string
+          status?: string
+          type?: string
+          country?: string
+          cargo?: string
+          origin?: string
+          destination?: string
+          route?: Json
+          road_route?: Json | null
+          progress?: number
+          position?: Json
+          speed?: number
+          eta?: string | null
+          driver_name?: string
+          driver_phone?: string | null
+          driver_license?: string | null
+          driver_experience?: number | null
+          driver_rating?: number | null
+          vehicle_id?: string | null
+          plate_number?: string | null
+          capacity?: string | null
+          total_weight?: string | null
+          shipper?: string | null
+          consignee?: string | null
+          cargo_items?: Json
+          gps_online?: boolean
+          last_gps_at?: string | null
+          last_known_pos?: Json | null
+          manual_override?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stops: {
+        Row: {
+          id: string
+          shipment_id: string
+          seq: number
+          location: string
+          position: Json
+          items: Json
+          eta: string | null
+          status: string
+          contact: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          shipment_id: string
+          seq?: number
+          location?: string
+          position?: Json
+          items?: Json
+          eta?: string | null
+          status?: string
+          contact?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          shipment_id?: string
+          seq?: number
+          location?: string
+          position?: Json
+          items?: Json
+          eta?: string | null
+          status?: string
+          contact?: string | null
+          created_at?: string
         }
         Relationships: []
       }

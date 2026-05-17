@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CITIES, etaFromKm, suggestWaypoints, totalRouteKm, findCity } from "@/lib/cities";
-import type { CargoItem, LatLng, Shipment, ShipmentStatus, VehicleType } from "@/lib/demo-data";
+import type { CargoItem, LatLng, Shipment, ShipmentStatus, VehicleType, Dropoff } from "@/lib/demo-data";
 
 interface Props {
   open: boolean;
@@ -113,6 +113,54 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const removeItem = (i: number) =>
     setForm((f) => ({ ...f, cargoItems: f.cargoItems.filter((_, idx) => idx !== i) }));
 
+  // Dropoff management
+  const addDropoff = () => {
+    const lastStop = form.dropoffs[form.dropoffs.length - 1];
+    const newDropoff: Dropoff = {
+      location: "",
+      position: lastStop?.position ?? destCity?.position ?? [47.9184, 106.9177],
+      items: [],
+      eta: "",
+      status: "pending",
+    };
+    setForm((f) => ({ ...f, dropoffs: [...f.dropoffs, newDropoff] }));
+  };
+
+  const updateDropoff = (i: number, patch: Partial<Dropoff>) =>
+    setForm((f) => ({ ...f, dropoffs: f.dropoffs.map((d, idx) => (idx === i ? { ...d, ...patch } : d)) }));
+
+  const removeDropoff = (i: number) =>
+    setForm((f) => ({ ...f, dropoffs: f.dropoffs.filter((_, idx) => idx !== i) }));
+
+  const addDropoffItem = (dropIdx: number) => {
+    setForm((f) => ({
+      ...f,
+      dropoffs: f.dropoffs.map((d, idx) =>
+        idx === dropIdx ? { ...d, items: [...d.items, { name: "", qty: 1 }] } : d,
+      ),
+    }));
+  };
+
+  const updateDropoffItem = (dropIdx: number, itemIdx: number, patch: Partial<CargoItem>) => {
+    setForm((f) => ({
+      ...f,
+      dropoffs: f.dropoffs.map((d, idx) =>
+        idx === dropIdx
+          ? { ...d, items: d.items.map((it, iidx) => (iidx === itemIdx ? { ...it, ...patch } : it)) }
+          : d,
+      ),
+    }));
+  };
+
+  const removeDropoffItem = (dropIdx: number, itemIdx: number) => {
+    setForm((f) => ({
+      ...f,
+      dropoffs: f.dropoffs.map((d, idx) =>
+        idx === dropIdx ? { ...d, items: d.items.filter((_, iidx) => iidx !== itemIdx) } : d,
+      ),
+    }));
+  };
+
   const handleSave = () => {
     if (!computed || !originCity || !destCity) return;
     const total = computed.total;
@@ -125,15 +173,12 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       eta: computed.eta,
       position: initial ? form.position : computed.route[0],
       totalWeight: `${total} тн`,
-      dropoffs: [
-        {
-          location: destName,
-          position: destCity.position,
-          items: form.cargoItems,
-          eta: computed.eta,
-          status: "pending",
-        },
-      ],
+      dropoffs: form.dropoffs.map((d) => ({
+        ...d,
+        location: d.location || destName,
+        position: d.position || destCity.position,
+        eta: d.eta || computed.eta,
+      })),
     };
     onSave(finalShipment);
     onClose();
@@ -360,6 +405,96 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                     className="rounded-lg border border-dashed border-border bg-card/40 px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
                   >
                     + Бүтээгдэхүүн нэмэх
+                  </button>
+                </div>
+              </Section>
+
+              {/* Multi-stop dropoffs */}
+              <Section title={`Буулгах цэгүүд (${form.dropoffs.length})`}>
+                <div className="space-y-3">
+                  {form.dropoffs.map((d, i) => (
+                    <div key={i} className="rounded-xl border border-border bg-card/30 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-muted-foreground">#{i + 1}</div>
+                        <button
+                          type="button"
+                          onClick={() => removeDropoff(i)}
+                          className="rounded-md border border-border bg-card/60 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <Field label="Буулгах газар">
+                          <select
+                            value={d.location}
+                            onChange={(e) => {
+                              const city = findCity(e.target.value);
+                              updateDropoff(i, {
+                                location: e.target.value,
+                                position: city?.position ?? d.position,
+                              });
+                            }}
+                            className="inp"
+                          >
+                            <option value="">-- Сонгох --</option>
+                            {CITIES.map((c) => (
+                              <option key={c.name} value={c.name}>{c.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Холбогдох">
+                          <input
+                            value={d.contact ?? ""}
+                            onChange={(e) => updateDropoff(i, { contact: e.target.value })}
+                            placeholder="Утас, нэр"
+                            className="inp"
+                          />
+                        </Field>
+                      </div>
+                      {/* Items for this dropoff */}
+                      <div className="mt-2 space-y-1.5">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Буулгах ачаа</div>
+                        {d.items.map((it, j) => (
+                          <div key={j} className="grid grid-cols-[1fr_70px_auto] gap-1.5">
+                            <input
+                              placeholder="Бүтээгдэхүүн"
+                              value={it.name}
+                              onChange={(e) => updateDropoffItem(i, j, { name: e.target.value })}
+                              className="inp text-xs"
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              value={it.qty}
+                              onChange={(e) => updateDropoffItem(i, j, { qty: Number(e.target.value) })}
+                              className="inp text-xs tabular-nums"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeDropoffItem(i, j)}
+                              className="rounded border border-border bg-card/60 px-1.5 text-[10px] text-muted-foreground hover:text-destructive"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addDropoffItem(i)}
+                          className="text-[10px] text-primary hover:underline"
+                        >
+                          + Ачаа нэмэх
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addDropoff}
+                    className="w-full rounded-lg border border-dashed border-border bg-card/40 px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    + Буулгах цэг нэмэх
                   </button>
                 </div>
               </Section>
