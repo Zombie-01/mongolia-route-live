@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/lib/store";
 
@@ -16,19 +16,31 @@ const roles: { id: Role; label: string; emoji: string; desc: string; to: string 
 ];
 
 function LoginPage() {
-  const { login } = useStore();
+  const { loginDemo, role } = useStore();
   const nav = useNavigate();
   const [loading, setLoading] = useState<Role | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  const handle = (r: Role, to: string) => {
+  // Auto-navigate once a role is established
+  useEffect(() => {
+    if (!role) return;
+    const to = role === "admin" ? "/dashboard" : role === "driver" ? "/driver" : "/track";
+    nav({ to });
+  }, [role, nav]);
+
+  const handle = async (r: Role) => {
+    setErr(null);
     setLoading(r);
-    login(r);
-    setTimeout(() => nav({ to }), 900);
+    const { error } = await loginDemo(r);
+    if (error) {
+      setErr(error);
+      setLoading(null);
+    }
+    // Navigation happens automatically via the effect above when role resolves.
   };
 
   return (
     <div className="relative grid min-h-screen place-items-center overflow-hidden px-4 py-10">
-      {/* ambient grid */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
@@ -50,15 +62,15 @@ function LoginPage() {
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
             Demo MVP · Mongolia · OpenStreetMap
           </div>
-          <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
+          <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
             Шууд цагийн <span className="text-primary">ачаа тээврийн</span> хяналт
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-            Жолооч, диспетчер, харилцагч — нэг товшилтоор демо горимд орж бүх системийг туршина уу.
+            Жолооч, диспетчер, харилцагч — нэг товшилтоор бодит хэрэглэгчээр нэвтэрч системийг туршина уу.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {roles.map((r, i) => (
             <motion.button
               key={r.id}
@@ -66,7 +78,7 @@ function LoginPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + i * 0.1 }}
               whileHover={{ y: -4 }}
-              onClick={() => handle(r.id, r.to)}
+              onClick={() => handle(r.id)}
               disabled={loading !== null}
               className="glass group relative overflow-hidden rounded-2xl p-6 text-left transition-shadow hover:glow disabled:opacity-60"
             >
@@ -78,16 +90,25 @@ function LoginPage() {
               </div>
               <div className="text-lg font-semibold">{r.label}</div>
               <div className="mt-1 text-sm text-muted-foreground">{r.desc}</div>
-              <div className="mt-6 flex items-center gap-2 text-sm text-primary">
-                Орох
+              <div className="mt-4 font-mono text-[10px] text-muted-foreground">
+                {r.id}@demo.mn · demo1234
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-sm text-primary">
+                {loading === r.id ? "Нэвтэрч байна…" : "Орох"}
                 <span className="transition-transform group-hover:translate-x-1">→</span>
               </div>
             </motion.button>
           ))}
         </div>
 
+        {err && (
+          <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-center text-xs text-destructive">
+            {err}
+          </div>
+        )}
+
         <div className="mt-8 text-center text-xs text-muted-foreground">
-          Нууц үг шаардлагагүй · Демо өгөгдөл автоматаар ачаалагдана
+          Demo бүртгэлүүд автоматаар үүсгэгдсэн · Lovable Cloud-р баталгаажуулна
         </div>
       </motion.div>
 
