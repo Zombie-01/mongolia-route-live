@@ -14,29 +14,40 @@ function TrackPage() {
   const nav = useNavigate();
   const [query, setQuery] = useState("MN-2041");
   const [submitted, setSubmitted] = useState("MN-2041");
-  const [mobileView, setMobileView] = useState<"map" | "list">("list");
+  const [mobileView, setMobileView] = useState<"map" | "list">("map");
 
   useEffect(() => {
     if (!role) nav({ to: "/" });
   }, [role, nav]);
 
-  const found = shipments.find(
-    (s) => s.trackingId.toLowerCase() === submitted.toLowerCase(),
-  );
+  const found = shipments.find((s) => s.trackingId.toLowerCase() === submitted.toLowerCase());
 
   return (
-    <AppShell mobileView={mobileView} onMobileViewChange={setMobileView}>
+    <AppShell>
+      {/* Mobile toggle */}
+      <div className="absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
+        {(["map", "list"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setMobileView(v)}
+            className={`rounded-full px-3 py-1 transition-colors ${
+              mobileView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {v === "map" ? "🗺 Газрын зураг" : "📋 Жагсаалт"}
+          </button>
+        ))}
+      </div>
+
       <div className="grid h-full grid-cols-1 lg:grid-cols-[420px_1fr]">
         <aside
-          className={`z-10 flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-4 backdrop-blur md:p-5 ${
+          className={`z-10 flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-5 backdrop-blur ${
             mobileView === "list" ? "flex" : "hidden lg:flex"
           }`}
         >
           <div>
             <h1 className="text-xl font-semibold">Ачаа хайх</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Хяналтын дугаараа оруулж шууд хянана уу.
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">Хяналтын дугаараа оруулж шууд хянана уу.</p>
           </div>
 
           <form
@@ -85,19 +96,11 @@ function TrackPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                      {found.trackingId}
-                    </div>
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">{found.trackingId}</div>
                     <div className="mt-1 text-lg font-semibold">{found.cargo}</div>
                   </div>
                   <div className="rounded-full border border-primary/30 bg-primary/15 px-2.5 py-1 text-[11px] text-primary">
-                    {found.status === "delivered"
-                      ? "Хүргэгдсэн"
-                      : found.status === "stopped"
-                        ? "Зогссон"
-                        : found.status === "delayed"
-                          ? "Хоцрол"
-                          : "Замд"}
+                    {found.status === "delivered" ? "Хүргэгдсэн" : found.status === "stopped" ? "Зогссон" : found.status === "delayed" ? "Хоцрол" : "Замд"}
                   </div>
                 </div>
 
@@ -122,34 +125,23 @@ function TrackPage() {
                   <Stat label="Жолооч" value={found.driver} />
                   <Stat label="Машин" value={found.vehicleId} />
                   <Stat label="Хурд" value={`${found.speed} км/ц`} />
-                  <Stat
-                    label="Төлөв"
-                    value={found.status === "in_transit" ? "Хөдөлгөөнтэй" : "Зогссон"}
-                  />
+                  <Stat label="Төлөв" value={found.status === "in_transit" ? "Хөдөлгөөнтэй" : "Зогссон"} />
                 </div>
 
+                {/* Dropoffs for customer */}
                 {found.dropoffs.length > 0 && (
                   <div className="mt-5">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Буулгах цэгүүд
-                    </div>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Буулгах цэгүүд</div>
                     <div className="space-y-2">
                       {found.dropoffs.map((d, i) => (
-                        <div
-                          key={i}
-                          className="rounded-lg border border-border bg-card/40 p-2.5 text-xs"
-                        >
+                        <div key={i} className="rounded-lg border border-border bg-card/40 p-2.5 text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">
-                              #{i + 1} {d.location}
-                            </span>
-                            <span
-                              className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
-                                d.status === "done"
-                                  ? "border-accent/30 bg-accent/15 text-accent"
-                                  : "border-primary/30 bg-primary/15 text-primary"
-                              }`}
-                            >
+                            <span className="font-medium">#{i + 1} {d.location}</span>
+                            <span className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
+                              d.status === "done"
+                                ? "border-accent/30 bg-accent/15 text-accent"
+                                : "border-primary/30 bg-primary/15 text-primary"
+                            }`}>
                               {d.status === "done" ? "Буулгасан" : "Хүлээгдэж буй"}
                             </span>
                           </div>
