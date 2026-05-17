@@ -46,7 +46,7 @@ function DashboardPage() {
   return (
     <AppShell>
       {/* Mobile toggle */}
-      <div className="absolute left-1/2 top-2 z-[999999999999999999999999] -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
+      <div className="absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
         {(["map", "list"] as const).map((v) => (
           <button
             key={v}
