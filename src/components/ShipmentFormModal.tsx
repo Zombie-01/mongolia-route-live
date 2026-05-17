@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { CITIES, etaFromKm, suggestWaypoints, totalRouteKm, findCity } from "@/lib/cities";
 import type {
@@ -62,6 +63,8 @@ function emptyShipment(): Shipment {
 }
 
 export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [form, setForm] = useState<Shipment>(() => initial ?? emptyShipment());
   const [originName, setOriginName] = useState(initial?.origin ?? "Улаанбаатар");
   const [destName, setDestName] = useState(initial?.destination ?? "Дархан");
@@ -204,7 +207,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     onClose();
   };
 
-  return (
+  const content = (
     <AnimatePresence>
       {open && (
         <motion.div
@@ -212,7 +215,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          style={{ zIndex: 10000 }}
+          style={{ zIndex: 100000 }}
           className="fixed inset-0 grid place-items-center bg-background/70 p-4 backdrop-blur"
         >
           <motion.div
@@ -621,6 +624,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       )}
     </AnimatePresence>
   );
+
+  if (typeof document !== "undefined" && mounted) return createPortal(content, document.body);
+  return null;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

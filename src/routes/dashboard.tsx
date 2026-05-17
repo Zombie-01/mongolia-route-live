@@ -55,7 +55,7 @@ function DashboardPage() {
   return (
     <AppShell>
       {/* Mobile bottom nav toggle */}
-      <div className=" bottom-4 z-50 border border-border bg-card/90 p-0.5 text-xs backdrop-blur lg:hidden pointer-events-auto">
+      <div className=" bottom-4  border border-border bg-card/90 p-0.5 text-xs backdrop-blur lg:hidden pointer-events-auto">
         {(["map", "list"] as const).map((v) => (
           <button
             key={v}
@@ -72,9 +72,11 @@ function DashboardPage() {
       <div className="grid h-full grid-cols-1 lg:grid-cols-[380px_1fr]">
         {/* Sidebar / List */}
         <aside
-          className={`z-10 flex flex-col overflow-hidden border-r border-border bg-background/40 backdrop-blur ${
-            mobileView === "list" ? "flex" : "hidden lg:flex"
-          }`}
+          className={
+            mobileView === "list"
+              ? "fixed inset-0 z-50 flex flex-col overflow-hidden border-r border-border bg-background/90 backdrop-blur lg:static lg:flex lg:inset-auto"
+              : "z-10 hidden lg:flex flex-col overflow-hidden border-r border-border bg-background/40 backdrop-blur"
+          }
         >
           <div className="grid grid-cols-4 gap-2 border-b border-border p-4">
             {[
