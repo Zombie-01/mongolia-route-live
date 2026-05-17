@@ -2,12 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CITIES, etaFromKm, suggestWaypoints, totalRouteKm, findCity } from "@/lib/cities";
 import type { CargoItem, LatLng, Shipment, ShipmentStatus, VehicleType, Dropoff } from "@/lib/demo-data";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
   initial?: Shipment | null;
   onClose: () => void;
   onSave: (s: Shipment) => void;
+}
+
+interface DriverInvite {
+  email: string;
+  password: string;
+  createAccount: boolean;
 }
 
 function emptyShipment(): Shipment {
@@ -54,11 +61,24 @@ function emptyShipment(): Shipment {
   };
 }
 
+function generatePassword(): string {
+  const chars = "abcdefghijkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
 export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const [form, setForm] = useState<Shipment>(() => initial ?? emptyShipment());
   const [originName, setOriginName] = useState(initial?.origin ?? "Улаанбаатар");
   const [destName, setDestName] = useState(initial?.destination ?? "Дархан");
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
+  const [driverInvite, setDriverInvite] = useState<DriverInvite>({
+    email: "",
+    password: generatePassword(),
+    createAccount: false,
+  });
+  const [inviteStatus, setInviteStatus] = useState<"idle" | "creating" | "done" | "error">("idle");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -67,6 +87,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     setOriginName(f.origin);
     setDestName(f.destination);
     setWaypointNames([]);
+    setDriverInvite({ email: "", password: generatePassword(), createAccount: false });
+    setInviteStatus("idle");
+    setInviteError(null);
+    setCreatedCredentials(null);
   }, [open, initial]);
 
   const originCity = useMemo(() => findCity(originName), [originName]);
@@ -113,7 +137,6 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const removeItem = (i: number) =>
     setForm((f) => ({ ...f, cargoItems: f.cargoItems.filter((_, idx) => idx !== i) }));
 
-  // Dropoff management
   const addDropoff = () => {
     const lastStop = form.dropoffs[form.dropoffs.length - 1];
     const newDropoff: Dropoff = {
@@ -161,8 +184,47 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     }));
   };
 
-  const handleSave = () => {
+  const createDriverAccount = async (): Promise<boolean> => {
+    if (!driverInvite.createAccount || !driverInvite.email) return true;
+    setInviteStatus("creating");
+    setInviteError(null);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: driverInvite.email,
+        password: driverInvite.password,
+        options: {
+          data: { display_name: form.driver },
+        },
+      });
+      if (error) throw error;
+      const userId = data.user?.id;
+      if (userId) {
+        await supabase.from("user_roles").insert({ user_id: userId, role: "driver" });
+        await supabase.from("profiles").upsert({
+          id: userId,
+          display_name: form.driver,
+          phone: form.driverPhone,
+        });
+      }
+      setCreatedCredentials({ email: driverInvite.email, password: driverInvite.password });
+      setInviteStatus("done");
+      return true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Алдаа гарлаа";
+      setInviteError(msg);
+      setInviteStatus("error");
+      return false;
+    }
+  };
+
+  const handleSave = async () => {
     if (!computed || !originCity || !destCity) return;
+
+    if (driverInvite.createAccount && driverInvite.email && inviteStatus !== "done") {
+      const ok = await createDriverAccount();
+      if (!ok) return;
+    }
+
     const total = computed.total;
     const finalShipment: Shipment = {
       ...form,
@@ -193,21 +255,21 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
           exit={{ opacity: 0 }}
           onClick={onClose}
           style={{ zIndex: 10000 }}
-          className="fixed inset-0 grid place-items-center bg-background/70 p-4 backdrop-blur"
+          className="fixed inset-0 grid place-items-center bg-background/70 p-2 backdrop-blur sm:p-4"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
+            className="glass flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
           >
-            <div className="flex items-center justify-between border-b border-border p-5">
+            <div className="flex items-center justify-between border-b border-border p-4 md:p-5">
               <div>
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   {initial ? "Хүргэлт засах" : "Шинэ хүргэлт"}
                 </div>
-                <h3 className="mt-1 text-xl font-semibold">
+                <h3 className="mt-1 text-lg font-semibold md:text-xl">
                   {originName} → {destName}
                 </h3>
               </div>
@@ -219,7 +281,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="flex-1 space-y-5 overflow-y-auto p-4 md:p-5">
               <Section title="Үндсэн мэдээлэл">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Field label="Хяналтын дугаар">
@@ -235,23 +297,27 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                       onChange={(e) => setForm({ ...form, type: e.target.value as VehicleType })}
                       className="inp"
                     >
-                      <option value="truck">🚚 Машин</option>
-                      <option value="wagon">🚆 Вагон</option>
+                      <option value="truck">Машин</option>
+                      <option value="wagon">Вагон</option>
                     </select>
                   </Field>
-                  <Field label="Илгээх улс">
+                  <Field label="Улс">
                     <select
                       value={form.country}
                       onChange={(e) => setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })}
                       className="inp"
                     >
-                      <option value="MN">🇲🇳 Монгол</option>
-                      <option value="RU">🇷🇺 ОХУ</option>
-                      <option value="CN">🇨🇳 БНХАУ</option>
+                      <option value="MN">Монгол</option>
+                      <option value="RU">ОХУ</option>
+                      <option value="CN">БНХАУ</option>
                     </select>
                   </Field>
                   <Field label="Ачааны нэр" wide>
-                    <input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} className="inp" />
+                    <input
+                      value={form.cargo}
+                      onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Төлөв">
                     <select
@@ -271,16 +337,28 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title="Маршрут">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Эхлэх хот">
-                    <select value={originName} onChange={(e) => setOriginName(e.target.value)} className="inp">
+                    <select
+                      value={originName}
+                      onChange={(e) => setOriginName(e.target.value)}
+                      className="inp"
+                    >
                       {CITIES.map((c) => (
-                        <option key={c.name} value={c.name}>{c.name}</option>
+                        <option key={c.name} value={c.name}>
+                          {c.name}
+                        </option>
                       ))}
                     </select>
                   </Field>
                   <Field label="Хүрэх хот">
-                    <select value={destName} onChange={(e) => setDestName(e.target.value)} className="inp">
+                    <select
+                      value={destName}
+                      onChange={(e) => setDestName(e.target.value)}
+                      className="inp"
+                    >
                       {CITIES.map((c) => (
-                        <option key={c.name} value={c.name}>{c.name}</option>
+                        <option key={c.name} value={c.name}>
+                          {c.name}
+                        </option>
                       ))}
                     </select>
                   </Field>
@@ -289,14 +367,14 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                 <div className="mt-3">
                   <div className="mb-1.5 flex items-center justify-between">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Дундын зогсоол / өртөө (авто санал)
+                      Дундын зогсоол (авто санал)
                     </div>
                     <button
                       type="button"
                       onClick={() => setWaypointNames(autoSuggested)}
                       className="text-[11px] text-primary hover:underline"
                     >
-                      Автоматаар тааруулах
+                      Автоматаар
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-card/40 p-2">
@@ -325,8 +403,8 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
                 {computed && (
                   <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <Stat label="Зайн урт" value={`${Math.round(computed.km)} км`} />
-                    <Stat label="Зорчих хугацаа (авто)" value={computed.eta} />
+                    <Stat label="Зай" value={`${Math.round(computed.km)} км`} />
+                    <Stat label="ETA" value={computed.eta} />
                     <Stat label="Зогсоол" value={`${waypointNames.length} цэг`} />
                   </div>
                 )}
@@ -335,33 +413,150 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title="Жолооч / Бригад">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Field label="Нэр" wide>
-                    <input value={form.driver} onChange={(e) => setForm({ ...form, driver: e.target.value })} className="inp" />
+                    <input
+                      value={form.driver}
+                      onChange={(e) => setForm({ ...form, driver: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Утас">
-                    <input value={form.driverPhone} onChange={(e) => setForm({ ...form, driverPhone: e.target.value })} className="inp" />
+                    <input
+                      value={form.driverPhone}
+                      onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Үнэмлэх">
-                    <input value={form.driverLicense} onChange={(e) => setForm({ ...form, driverLicense: e.target.value })} className="inp" />
+                    <input
+                      value={form.driverLicense}
+                      onChange={(e) => setForm({ ...form, driverLicense: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Туршлага">
-                    <input value={form.driverExperience} onChange={(e) => setForm({ ...form, driverExperience: e.target.value })} className="inp" />
+                    <input
+                      value={form.driverExperience}
+                      onChange={(e) => setForm({ ...form, driverExperience: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Улсын дугаар">
-                    <input value={form.plateNumber} onChange={(e) => setForm({ ...form, plateNumber: e.target.value, vehicleId: e.target.value })} className="inp" />
+                    <input
+                      value={form.plateNumber}
+                      onChange={(e) =>
+                        setForm({ ...form, plateNumber: e.target.value, vehicleId: e.target.value })
+                      }
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Даац">
-                    <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="inp" />
+                    <input
+                      value={form.capacity}
+                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                 </div>
+
+                {/* Driver account creation — only for new shipments */}
+                {!initial && (
+                  <div className="mt-3 rounded-xl border border-border bg-card/30 p-3">
+                    <label className="flex cursor-pointer items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={driverInvite.createAccount}
+                        onChange={(e) =>
+                          setDriverInvite((d) => ({ ...d, createAccount: e.target.checked }))
+                        }
+                        className="h-4 w-4 rounded border-border accent-primary"
+                      />
+                      <span className="text-sm font-medium">
+                        Жолоочид системийн эрх үүсгэх
+                      </span>
+                    </label>
+
+                    {driverInvite.createAccount && (
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <Field label="И-мэйл хаяг" wide>
+                          <input
+                            type="email"
+                            value={driverInvite.email}
+                            onChange={(e) =>
+                              setDriverInvite((d) => ({ ...d, email: e.target.value }))
+                            }
+                            placeholder="driver@example.com"
+                            className="inp"
+                          />
+                        </Field>
+                        <Field label="Нууц үг">
+                          <div className="flex gap-1.5">
+                            <input
+                              value={driverInvite.password}
+                              onChange={(e) =>
+                                setDriverInvite((d) => ({ ...d, password: e.target.value }))
+                              }
+                              className="inp min-w-0 flex-1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDriverInvite((d) => ({ ...d, password: generatePassword() }))
+                              }
+                              className="shrink-0 rounded-lg border border-border bg-card/60 px-2 text-xs text-muted-foreground hover:text-foreground"
+                              title="Дахин үүсгэх"
+                            >
+                              ↻
+                            </button>
+                          </div>
+                        </Field>
+                      </div>
+                    )}
+
+                    {inviteError && (
+                      <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {inviteError}
+                      </div>
+                    )}
+
+                    {createdCredentials && (
+                      <div className="mt-3 rounded-xl border border-primary/30 bg-primary/10 p-3">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                          Бүртгэл амжилттай үүссэн
+                        </div>
+                        <div className="space-y-1 font-mono text-xs">
+                          <div>
+                            <span className="text-muted-foreground">И-мэйл: </span>
+                            <span className="select-all font-medium">{createdCredentials.email}</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Нууц үг: </span>
+                            <span className="select-all font-medium">{createdCredentials.password}</span>
+                          </div>
+                        </div>
+                        <div className="mt-1.5 text-[10px] text-muted-foreground">
+                          Эдгээр мэдээллийг жолоочид илгээнэ үү.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </Section>
 
               <Section title="Талууд">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Илгээгч">
-                    <input value={form.shipper} onChange={(e) => setForm({ ...form, shipper: e.target.value })} className="inp" />
+                    <input
+                      value={form.shipper}
+                      onChange={(e) => setForm({ ...form, shipper: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Хүлээн авагч">
-                    <input value={form.consignee} onChange={(e) => setForm({ ...form, consignee: e.target.value })} className="inp" />
+                    <input
+                      value={form.consignee}
+                      onChange={(e) => setForm({ ...form, consignee: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                 </div>
               </Section>
@@ -369,9 +564,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title={`Ачаа (${form.cargoItems.reduce((s, c) => s + (Number(c.qty) || 0), 0)} тн)`}>
                 <div className="space-y-2">
                   {form.cargoItems.map((c, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_90px_1fr_auto] gap-2">
+                    <div key={i} className="grid grid-cols-[1fr_80px_1fr_auto] gap-2">
                       <input
-                        placeholder="Бүтээгдэхүүн (ж: Овьёос)"
+                        placeholder="Бүтээгдэхүүн"
                         value={c.name}
                         onChange={(e) => updateItem(i, { name: e.target.value })}
                         className="inp"
@@ -409,7 +604,6 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                 </div>
               </Section>
 
-              {/* Multi-stop dropoffs */}
               <Section title={`Буулгах цэгүүд (${form.dropoffs.length})`}>
                 <div className="space-y-3">
                   {form.dropoffs.map((d, i) => (
@@ -439,7 +633,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                           >
                             <option value="">-- Сонгох --</option>
                             {CITIES.map((c) => (
-                              <option key={c.name} value={c.name}>{c.name}</option>
+                              <option key={c.name} value={c.name}>
+                                {c.name}
+                              </option>
                             ))}
                           </select>
                         </Field>
@@ -452,9 +648,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                           />
                         </Field>
                       </div>
-                      {/* Items for this dropoff */}
                       <div className="mt-2 space-y-1.5">
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Буулгах ачаа</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          Буулгах ачаа
+                        </div>
                         {d.items.map((it, j) => (
                           <div key={j} className="grid grid-cols-[1fr_70px_auto] gap-1.5">
                             <input
@@ -500,15 +697,23 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               </Section>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-border bg-background/40 p-4">
-              <button onClick={onClose} className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm">
+            <div className="flex items-center justify-end gap-2 border-t border-border bg-background/40 p-3 md:p-4">
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm"
+              >
                 Болих
               </button>
               <button
                 onClick={handleSave}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                disabled={inviteStatus === "creating"}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
               >
-                {initial ? "Хадгалах" : "Хүргэлт үүсгэх"}
+                {inviteStatus === "creating"
+                  ? "Бүртгэж байна..."
+                  : initial
+                    ? "Хадгалах"
+                    : "Хүргэлт үүсгэх"}
               </button>
             </div>
 
@@ -526,13 +731,23 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       {children}
     </div>
   );
 }
 
-function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
+function Field({
+  label,
+  children,
+  wide,
+}: {
+  label: string;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
   return (
     <div className={wide ? "sm:col-span-2" : ""}>
       <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
