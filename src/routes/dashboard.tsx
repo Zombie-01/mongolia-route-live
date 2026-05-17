@@ -20,21 +20,23 @@ const statusMeta: Record<Shipment["status"], { label: string; cls: string }> = {
 };
 
 function DashboardPage() {
-  const { role, shipments, addShipment, updateShipment, removeShipment, overridePosition } = useStore();
+  const { role, loading, shipments, addShipment, updateShipment, removeShipment, overridePosition } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Shipment | null>(null);
+  const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const detail = shipments.find((s) => s.id === detailId) ?? null;
 
   useEffect(() => {
+    if (loading) return;
     if (!role) nav({ to: "/" });
     else if (role === "driver") nav({ to: "/driver" });
     else if (role === "customer") nav({ to: "/track" });
-  }, [role, nav]);
+  }, [role, loading, nav]);
 
-  if (role !== "admin") return null;
+  if (loading || role !== "admin") return null;
 
   const counts = shipments.reduce(
     (acc, s) => ({ ...acc, [s.status]: (acc[s.status] || 0) + 1 }),
