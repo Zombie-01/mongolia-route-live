@@ -110,8 +110,17 @@ function TrackPage() {
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2 text-sm">
-                  <Stat label="Жолооч" value={found.driver} />
-                  <Stat label="Машин" value={found.vehicleId} />
+                  {found.type === "wagon" ? (
+                    <>
+                      <Stat label="Бригад" value={found.vehicleId} />
+                      <Stat label="Холбогдох" value={found.driverPhone} />
+                    </>
+                  ) : (
+                    <>
+                      <Stat label="Жолооч" value={found.driver} />
+                      <Stat label="Машин" value={found.vehicleId} />
+                    </>
+                  )}
                   <Stat label="Хурд" value={`${found.speed} км/ц`} />
                   <Stat label="Төлөв" value={found.status === "in_transit" ? "Хөдөлгөөнтэй" : "Зогссон"} />
                 </div>

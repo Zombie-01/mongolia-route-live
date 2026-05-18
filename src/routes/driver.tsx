@@ -128,7 +128,17 @@ function DriverPage() {
             <div className="mt-5 space-y-2 text-sm">
               <Row label="Ачаа" value={current.cargo} />
               <Row label="Замнал" value={`${current.origin} → ${current.destination}`} />
-              <Row label="Машин" value={current.vehicleId} />
+              {isWagon ? (
+                <>
+                  <Row label="Бригад" value={current.vehicleId} />
+                  <Row label="Холбогдох" value={current.driverPhone} />
+                </>
+              ) : (
+                <>
+                  <Row label="Жолооч" value={current.driver} />
+                  <Row label="Машин" value={current.vehicleId} />
+                </>
+              )}
               <Row label="Хурд" value={`${current.speed} км/ц`} />
               <Row label="ETA" value={current.eta} />
               <Row label="Байршил" value={`${current.position[0].toFixed(4)}, ${current.position[1].toFixed(4)}`} />

@@ -120,14 +120,18 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                 </div>
               </div>
 
-              {/* Driver */}
-              <Section title="Жолооч / Бригад">
+              {/* Driver / Brigade */}
+              <Section title={shipment.type === "wagon" ? "Бригад / Холбогдох" : "Жолооч / Бригад"}>
                 <div className="glass rounded-xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-base font-semibold">{shipment.driver}</div>
+                      <div className="text-base font-semibold">
+                        {shipment.type === "wagon" ? shipment.vehicleId : shipment.driver}
+                      </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        Туршлага {shipment.driverExperience} · Үнэлгээ ⭐ {shipment.driverRating.toFixed(1)}
+                        {shipment.type === "wagon"
+                          ? `Вагон бригад · Даац ${shipment.capacity}`
+                          : `Туршлага ${shipment.driverExperience} · Үнэлгээ ⭐ ${shipment.driverRating.toFixed(1)}`}
                       </div>
                     </div>
                     <a
@@ -139,9 +143,18 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                     <Mini label="Утас" value={shipment.driverPhone} />
-                    <Mini label="Үнэмлэх" value={shipment.driverLicense} />
-                    <Mini label="Улсын дугаар" value={shipment.plateNumber} />
-                    <Mini label="Даацын чадал" value={shipment.capacity} />
+                    {shipment.type === "wagon" ? (
+                      <>
+                        <Mini label="Вагон ID" value={shipment.vehicleId} />
+                        <Mini label="Даац" value={shipment.capacity} />
+                      </>
+                    ) : (
+                      <>
+                        <Mini label="Үнэмлэх" value={shipment.driverLicense} />
+                        <Mini label="Улсын дугаар" value={shipment.plateNumber} />
+                        <Mini label="Даацын чадал" value={shipment.capacity} />
+                      </>
+                    )}
                   </div>
                 </div>
               </Section>

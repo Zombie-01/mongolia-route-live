@@ -73,7 +73,10 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
   function DriverSelect() {
     const { drivers } = useStore();
-    const activeDrivers = drivers.filter((d) => d.active);
+    const isWagon = form.type === "wagon";
+
+    // Only show truck drivers for truck shipments
+    const activeTruckDrivers = drivers.filter((d) => d.active && d.type === "truck");
     const selectedDriver = drivers.find(
       (d) => d.name === form.driver && d.plateNumber === form.plateNumber,
     );
@@ -96,6 +99,39 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       }));
     };
 
+    // Wagon: only contact number, no driver
+    if (isWagon) {
+      return (
+        <div className="space-y-3">
+          <Field label="Холбогдох дугаар" wide>
+            <input
+              value={form.driverPhone}
+              onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
+              className="inp"
+              placeholder="Бригадын холбогдох утас"
+            />
+          </Field>
+          <Field label="Бригадын дугаар / Вагон ID">
+            <input
+              value={form.vehicleId}
+              onChange={(e) => setForm({ ...form, vehicleId: e.target.value, plateNumber: e.target.value })}
+              className="inp"
+              placeholder="ВАГОН-2204 / 4 вагон"
+            />
+          </Field>
+          <Field label="Даац">
+            <input
+              value={form.capacity}
+              onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+              className="inp"
+              placeholder="260 тн (4×65)"
+            />
+          </Field>
+        </div>
+      );
+    }
+
+    // Truck: driver dropdown
     return (
       <div className="space-y-3">
         <Field label="Жолооч сонгох" wide>
@@ -105,9 +141,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
             className="inp"
           >
             <option value="">-- Жолооч сонгох --</option>
-            {activeDrivers.map((d) => (
+            {activeTruckDrivers.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} · {d.plateNumber} · {d.type === "wagon" ? "🚆" : "🚚"} {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
+                {d.name} · {d.plateNumber} · 🚚 {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
               </option>
             ))}
           </select>
@@ -448,7 +484,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                 )}
               </Section>
 
-              <Section title="Жолооч / Бригад">
+              <Section title={form.type === "wagon" ? "Бригад / Холбогдох" : "Жолооч / Бригад"}>
                 <DriverSelect />
               </Section>
 
