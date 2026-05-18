@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, useMap, CircleMarker } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, Marker, useMap, CircleMarker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { nearestOnRoute, type LatLng, type Shipment } from "@/lib/demo-data";
+import type { Station } from "@/lib/store";
 
 if (typeof window !== "undefined") {
   delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -71,15 +72,36 @@ function FitBounds({ shipments, focusId }: { shipments: Shipment[]; focusId?: st
   return null;
 }
 
+function MapClickHandler({ onMapClick }: { onMapClick?: (pos: LatLng) => void }) {
+  useMapEvents({
+    click(e) {
+      if (onMapClick) {
+        onMapClick([e.latlng.lat, e.latlng.lng]);
+      }
+    },
+  });
+  return null;
+}
+
 interface Props {
   shipments: Shipment[];
+  stations?: Station[];
   focusId?: string;
   onSelect?: (id: string) => void;
   editable?: boolean;
   onDragEnd?: (id: string, pos: LatLng) => void;
+  onMapClick?: (pos: LatLng) => void;
 }
 
-export function FleetMap({ shipments, focusId, onSelect, editable, onDragEnd }: Props) {
+export function FleetMap({
+  shipments,
+  stations = [],
+  focusId,
+  onSelect,
+  editable,
+  onDragEnd,
+  onMapClick,
+}: Props) {
   const center = useMemo<[number, number]>(() => [47.9184, 106.9177], []);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -95,6 +117,7 @@ export function FleetMap({ shipments, focusId, onSelect, editable, onDragEnd }: 
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
       {shipments.map((s) => (
         <Polyline
           key={`r-${s.id}`}
@@ -107,7 +130,18 @@ export function FleetMap({ shipments, focusId, onSelect, editable, onDragEnd }: 
           }}
         />
       ))}
-      {/* Stop markers along route */}
+      {stations.map((st) => (
+        <CircleMarker
+          key={`station-${st.id}`}
+          center={st.position}
+          radius={5}
+          fillColor="#8b5cf6"
+          color="#7c3aed"
+          weight={2}
+          opacity={0.8}
+          fillOpacity={0.4}
+        />
+      ))}
       {shipments.map((s) =>
         s.dropoffs.map((d, i) => (
           <Marker

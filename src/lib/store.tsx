@@ -226,11 +226,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         data.map((r) => ({
           id: r.id as string,
           name: r.name as string,
-          city: r.city as string,
-          position: (r.position as LatLng) ?? [0, 0],
-          type: (r.type as string) ?? "warehouse",
-          contact: (r.contact as string) ?? "",
-          active: (r.active as boolean) ?? true,
+          city: "",
+          position: [parseFloat(r.latitude as string), parseFloat(r.longitude as string)] as LatLng,
+          type: "station",
+          contact: "",
+          active: true,
         })),
       );
     } catch {
@@ -813,11 +813,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from("stations")
       .insert({
         name: s.name,
-        city: s.city,
-        position: s.position as unknown as Json,
-        type: s.type,
-        contact: s.contact,
-        active: s.active,
+        latitude: s.position[0],
+        longitude: s.position[1],
       })
       .select("id")
       .single()
@@ -830,11 +827,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setStations((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
     const row: Record<string, unknown> = {};
     if (patch.name !== undefined) row.name = patch.name;
-    if (patch.city !== undefined) row.city = patch.city;
-    if (patch.position !== undefined) row.position = patch.position as unknown as Json;
-    if (patch.type !== undefined) row.type = patch.type;
-    if (patch.contact !== undefined) row.contact = patch.contact;
-    if (patch.active !== undefined) row.active = patch.active;
+    if (patch.position !== undefined) {
+      row.latitude = patch.position[0];
+      row.longitude = patch.position[1];
+    }
     supabase.from("stations").update(row).eq("id", id).then(() => {});
   };
 
