@@ -35,6 +35,161 @@ export type Database = {
         }
         Relationships: []
       }
+      shipments: {
+        Row: {
+          capacity: string | null
+          cargo: string
+          cargo_items: Json
+          consignee: string | null
+          country: string
+          created_at: string
+          created_by: string | null
+          destination: string
+          driver_experience: number | null
+          driver_license: string | null
+          driver_name: string
+          driver_phone: string | null
+          driver_rating: number | null
+          eta: string | null
+          gps_online: boolean
+          id: string
+          last_gps_at: string | null
+          last_known_pos: Json | null
+          manual_override: boolean
+          origin: string
+          plate_number: string | null
+          position: Json
+          progress: number
+          road_route: Json | null
+          route: Json
+          shipper: string | null
+          speed: number
+          status: string
+          total_weight: string | null
+          tracking_id: string
+          type: string
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          capacity?: string | null
+          cargo?: string
+          cargo_items?: Json
+          consignee?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          destination?: string
+          driver_experience?: number | null
+          driver_license?: string | null
+          driver_name?: string
+          driver_phone?: string | null
+          driver_rating?: number | null
+          eta?: string | null
+          gps_online?: boolean
+          id?: string
+          last_gps_at?: string | null
+          last_known_pos?: Json | null
+          manual_override?: boolean
+          origin?: string
+          plate_number?: string | null
+          position?: Json
+          progress?: number
+          road_route?: Json | null
+          route?: Json
+          shipper?: string | null
+          speed?: number
+          status?: string
+          total_weight?: string | null
+          tracking_id: string
+          type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          capacity?: string | null
+          cargo?: string
+          cargo_items?: Json
+          consignee?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          destination?: string
+          driver_experience?: number | null
+          driver_license?: string | null
+          driver_name?: string
+          driver_phone?: string | null
+          driver_rating?: number | null
+          eta?: string | null
+          gps_online?: boolean
+          id?: string
+          last_gps_at?: string | null
+          last_known_pos?: Json | null
+          manual_override?: boolean
+          origin?: string
+          plate_number?: string | null
+          position?: Json
+          progress?: number
+          road_route?: Json | null
+          route?: Json
+          shipper?: string | null
+          speed?: number
+          status?: string
+          total_weight?: string | null
+          tracking_id?: string
+          type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
+      stops: {
+        Row: {
+          contact: string | null
+          created_at: string
+          eta: string | null
+          id: string
+          items: Json
+          location: string
+          position: Json
+          seq: number
+          shipment_id: string
+          status: string
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          eta?: string | null
+          id?: string
+          items?: Json
+          location?: string
+          position?: Json
+          seq?: number
+          shipment_id: string
+          status?: string
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          eta?: string | null
+          id?: string
+          items?: Json
+          location?: string
+          position?: Json
+          seq?: number
+          shipment_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stops_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
