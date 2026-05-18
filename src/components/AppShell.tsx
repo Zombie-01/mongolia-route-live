@@ -17,6 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         : [
             { to: "/dashboard", label: "Самбар" },
             { to: "/drivers", label: "Жолооч нар" },
+            { to: "/customers", label: "Харилцагчид" },
             { to: "/stations", label: "Өртөө" },
             { to: "/track", label: "Ачаа хайх" },
           ];
@@ -42,8 +43,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow">
-              🛰
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow text-sm font-bold">
+              S
             </div>
             <div className="leading-tight">
               <div className="text-sm font-semibold tracking-tight">
@@ -123,8 +124,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {/* Drawer header */}
               <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div className="flex items-center gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow">
-                    🛰
+                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow text-sm font-bold">
+                    S
                   </div>
                   <div className="leading-tight">
                     <div className="text-sm font-semibold tracking-tight">
@@ -168,11 +169,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                       }`}
                     >
-                      {l.to === "/dashboard" && "📊"}
-                      {l.to === "/drivers" && "🚚"}
-                      {l.to === "/stations" && "🏗"}
-                      {l.to === "/track" && "🔍"}
-                      {l.to === "/driver" && "🚛"}
+                      <span className="w-4">
+                        {l.to === "/dashboard" && "D"}
+                        {l.to === "/drivers" && "J"}
+                        {l.to === "/customers" && "H"}
+                        {l.to === "/stations" && "O"}
+                        {l.to === "/track" && "H"}
+                        {l.to === "/driver" && "D"}
+                      </span>
                       {l.label}
                     </button>
                   );
@@ -189,7 +193,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   }}
                   className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
-                  🚪 Гарах
+                  <span className="w-4">X</span>
+                  Гарах
                 </button>
               </div>
             </motion.aside>

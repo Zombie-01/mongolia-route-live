@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { etaFromKm, totalRouteKm, distanceKm } from "@/lib/cities";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   CargoItem,
   LatLng,
@@ -11,6 +13,13 @@ import type {
   Dropoff,
 } from "@/lib/demo-data";
 import { useStore, type Driver, type Station } from "@/lib/store";
+
+interface Customer {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+}
 
 interface Props {
   open: boolean;
@@ -71,6 +80,15 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const [originName, setOriginName] = useState(initial?.origin ?? stations[0]?.name ?? "Улаанбаатар");
   const [destName, setDestName] = useState(initial?.destination ?? stations[1]?.name ?? "Дархан");
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as Customer[]) || [];
+    },
+  });
 
   function DriverSelect() {
     const { drivers } = useStore();
@@ -426,20 +444,41 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               <Section title="Талууд">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Илгээгч">
-                    <input
+                    <select
                       value={form.shipper}
                       onChange={(e) => setForm({ ...form, shipper: e.target.value })}
                       className="inp"
-                    />
+                    >
+                      <option value="">-- Сонгох эсвэл оруулах --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                          {c.phone ? ` · ${c.phone}` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                   <Field label="Хүлээн авагч">
-                    <input
+                    <select
                       value={form.consignee}
                       onChange={(e) => setForm({ ...form, consignee: e.target.value })}
                       className="inp"
-                    />
+                    >
+                      <option value="">-- Сонгох эсвэл оруулах --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                          {c.phone ? ` · ${c.phone}` : ""}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                 </div>
+                {customers.length === 0 && (
+                  <div className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                    Харилцагч байхгүй байна. "/customers" хаягаас харилцагч нэмнэ үү.
+                  </div>
+                )}
               </Section>
 
               <Section
