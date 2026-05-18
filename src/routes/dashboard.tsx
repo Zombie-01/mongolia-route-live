@@ -103,7 +103,7 @@ function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex-1 space-y-2 overflow-y-auto p-4">
+          <div className="flex-1 space-y-2 overflow-y-auto p-4 pb-24 lg:pb-4">
             {shipments.map((s) => {
               const meta = statusMeta[s.status];
               const active = focus === s.id;
