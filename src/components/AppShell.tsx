@@ -42,10 +42,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow">🛰</div>
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow">
+              🛰
+            </div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">ACHAA<span className="text-primary">.live</span></div>
-              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Mongolia Fleet</div>
+              <div className="text-sm font-semibold tracking-tight">
+                ACHAA<span className="text-primary">.live</span>
+              </div>
+              <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                Mongolia Fleet
+              </div>
             </div>
           </Link>
           <nav className="hidden gap-1 md:flex">
@@ -54,7 +60,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={l.to}
                 to={l.to}
                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                  path === l.to ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+                  path === l.to
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {l.label}
@@ -74,7 +82,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="hidden text-xs text-muted-foreground sm:inline">
             {name}
             {authMode === "mock" && (
-              <span className="ml-1.5 rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">MOCK</span>
+              <span className="ml-1.5 rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                MOCK
+              </span>
             )}
           </span>
           <button
@@ -100,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setDrawerOpen(false)}
-              className="fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm md:hidden"
+              className="fixed inset-0 z-[1100] bg-foreground/40 backdrop-blur-sm md:hidden"
             />
             {/* Drawer panel */}
             <motion.aside
@@ -108,14 +118,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-background shadow-2xl md:hidden"
+              className="fixed inset-y-0 left-0 z-[1100] flex w-72 flex-col border-r border-border bg-background shadow-2xl md:hidden"
             >
               {/* Drawer header */}
               <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div className="flex items-center gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow">🛰</div>
+                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground glow">
+                    🛰
+                  </div>
                   <div className="leading-tight">
-                    <div className="text-sm font-semibold tracking-tight">ACHAA<span className="text-primary">.live</span></div>
+                    <div className="text-sm font-semibold tracking-tight">
+                      ACHAA<span className="text-primary">.live</span>
+                    </div>
                   </div>
                 </div>
                 <button
@@ -133,7 +147,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   {role === "admin" ? "Админ" : role === "driver" ? "Жолооч" : "Харилцагч"}
                   {authMode === "mock" && (
-                    <span className="ml-1.5 rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">MOCK</span>
+                    <span className="ml-1.5 rounded border border-warning/40 bg-warning/10 px-1 py-0.5 text-[9px] text-warning">
+                      MOCK
+                    </span>
                   )}
                 </div>
               </div>
