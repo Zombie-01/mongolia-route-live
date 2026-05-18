@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore, type Driver } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
@@ -25,12 +25,31 @@ function emptyDriver(): Driver {
   };
 }
 
+const PAGE_SIZE = 10;
+
 function DriversPage() {
   const { role, loading, drivers, addDriver, updateDriver, removeDriver } = useStore();
   const nav = useNavigate();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Driver | null>(null);
   const [form, setForm] = useState<Driver>(emptyDriver());
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && visibleCount < drivers.length) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, drivers.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [visibleCount, drivers.length]);
 
   useEffect(() => {
     if (loading) return;
@@ -39,6 +58,9 @@ function DriversPage() {
   }, [role, loading, nav]);
 
   if (loading || role !== "admin") return null;
+
+  const visibleDrivers = drivers.slice(0, visibleCount);
+  const hasMore = visibleCount < drivers.length;
 
   const openNew = () => {
     setEditing(null);
@@ -67,73 +89,96 @@ function DriversPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-4xl p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Жолооч нар</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Жолооч, бригадын мэдээлэл удирдлага</p>
-          </div>
-          <button
-            onClick={openNew}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            + Шинэ жолооч
-          </button>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {drivers.map((d) => (
-            <motion.div
-              key={d.id}
-              layout
-              className="glass rounded-xl p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold">{d.name}</span>
-                    <span className="text-sm">{countryFlag(d.country)}</span>
-                    <span className="text-xs text-muted-foreground">{typeLabel(d.type)}</span>
-                    {!d.active && (
-                      <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
-                        Идэвхгүй
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
-                    <span>Утас: {d.phone}</span>
-                    <span>Үнэмлэх: {d.license}</span>
-                    <span>Дугаар: {d.plateNumber}</span>
-                    <span>Туршлага: {d.experience} жил</span>
-                    <span>Даац: {d.capacity}</span>
-                    <span>Үнэлгээ: ⭐ {d.rating.toFixed(1)}</span>
-                    <span>Машин: {d.vehicleId}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openEdit(d)}
-                    className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
-                  >
-                    ✎ Засах
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`${d.name}-г устгах уу?`)) removeDriver(d.id);
-                    }}
-                    className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
-                  >
-                    🗑
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-          {drivers.length === 0 && (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              Жолооч бүртгэгдээгүй байна. "Шинэ жолооч" товчийг дарж нэмнэ үү.
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl p-6 pb-24">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">Жолооч нар</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Жолооч, бригадын мэдээлэл удирдлага</p>
             </div>
-          )}
+            <button
+              onClick={openNew}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            >
+              + Шинэ жолооч
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {visibleDrivers.map((d) => (
+              <motion.div
+                key={d.id}
+                layout
+                className="glass rounded-xl p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-semibold">{d.name}</span>
+                      <span className="text-sm">{countryFlag(d.country)}</span>
+                      <span className="text-xs text-muted-foreground">{typeLabel(d.type)}</span>
+                      {!d.active && (
+                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
+                          Идэвхгүй
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
+                      <span>Утас: {d.phone}</span>
+                      <span>Үнэмлэх: {d.license}</span>
+                      <span>Дугаар: {d.plateNumber}</span>
+                      <span>Туршлага: {d.experience} жил</span>
+                      <span>Даац: {d.capacity}</span>
+                      <span>Үнэлгээ: ⭐ {d.rating.toFixed(1)}</span>
+                      <span>Машин: {d.vehicleId}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openEdit(d)}
+                      className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
+                    >
+                      ✎ Засах
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`${d.name}-г устгах уу?`)) removeDriver(d.id);
+                      }}
+                      className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} />
+
+            {hasMore && (
+              <div className="flex justify-center py-4">
+                <button
+                  onClick={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, drivers.length))}
+                  className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Илүүг ачааллах ({drivers.length - visibleCount} үлдсэн)
+                </button>
+              </div>
+            )}
+
+            {!hasMore && drivers.length > PAGE_SIZE && (
+              <div className="py-4 text-center text-xs text-muted-foreground">
+                Бүх жолооч харагдсан ({drivers.length})
+              </div>
+            )}
+
+            {drivers.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Жолооч бүртгэгдээгүй байна. "Шинэ жолооч" товчийг дарж нэмнэ үү.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

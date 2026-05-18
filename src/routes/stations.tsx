@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore, type Station } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
@@ -36,12 +36,16 @@ const typeColors: Record<string, string> = {
   customs: "border-destructive/30 bg-destructive/15 text-destructive",
 };
 
+const PAGE_SIZE = 10;
+
 function StationsPage() {
   const { role, loading, stations, addStation, updateStation, removeStation } = useStore();
   const nav = useNavigate();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
   const [form, setForm] = useState<Station>(emptyStation());
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (loading) return;
@@ -49,7 +53,25 @@ function StationsPage() {
     else if (role !== "admin") nav({ to: "/driver" });
   }, [role, loading, nav]);
 
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && visibleCount < stations.length) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, stations.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [visibleCount, stations.length]);
+
   if (loading || role !== "admin") return null;
+
+  const visibleStations = stations.slice(0, visibleCount);
+  const hasMore = visibleCount < stations.length;
 
   const openNew = () => {
     setEditing(null);
@@ -84,70 +106,93 @@ function StationsPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto w-full max-w-4xl p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Өртөө, буулгах цэгүүд</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Дундын зогсоол, агуулах, терминал, гаалийн цэгүүд</p>
-          </div>
-          <button
-            onClick={openNew}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            + Шинэ өртөө
-          </button>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {stations.map((s) => (
-            <motion.div
-              key={s.id}
-              layout
-              className="glass rounded-xl p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold">{s.name}</span>
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] ${typeColors[s.type] ?? typeColors.warehouse}`}>
-                      {typeLabels[s.type] ?? s.type}
-                    </span>
-                    {!s.active && (
-                      <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
-                        Идэвхгүй
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1.5 text-xs text-muted-foreground">
-                    <span>Хот: {s.city}</span>
-                    <span className="ml-4 font-mono">{s.position[0].toFixed(4)}, {s.position[1].toFixed(4)}</span>
-                    {s.contact && <span className="ml-4">Холбогдох: {s.contact}</span>}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openEdit(s)}
-                    className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
-                  >
-                    ✎ Засах
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`${s.name}-г устгах уу?`)) removeStation(s.id);
-                    }}
-                    className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
-                  >
-                    🗑
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-          {stations.length === 0 && (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              Өртөө бүртгэгдээгүй байна. "Шинэ өртөө" товчийг дарж нэмнэ үү.
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl p-6 pb-24">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">Өртөө, буулгах цэгүүд</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Дундын зогсоол, агуулах, терминал, гаалийн цэгүүд</p>
             </div>
-          )}
+            <button
+              onClick={openNew}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            >
+              + Шинэ өртөө
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {visibleStations.map((s) => (
+              <motion.div
+                key={s.id}
+                layout
+                className="glass rounded-xl p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-semibold">{s.name}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] ${typeColors[s.type] ?? typeColors.warehouse}`}>
+                        {typeLabels[s.type] ?? s.type}
+                      </span>
+                      {!s.active && (
+                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
+                          Идэвхгүй
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 text-xs text-muted-foreground">
+                      <span>Хот: {s.city}</span>
+                      <span className="ml-4 font-mono">{s.position[0].toFixed(4)}, {s.position[1].toFixed(4)}</span>
+                      {s.contact && <span className="ml-4">Холбогдох: {s.contact}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openEdit(s)}
+                      className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
+                    >
+                      ✎ Засах
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`${s.name}-г устгах уу?`)) removeStation(s.id);
+                      }}
+                      className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} />
+
+            {hasMore && (
+              <div className="flex justify-center py-4">
+                <button
+                  onClick={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, stations.length))}
+                  className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Илүүг ачааллах ({stations.length - visibleCount} үлдсэн)
+                </button>
+              </div>
+            )}
+
+            {!hasMore && stations.length > PAGE_SIZE && (
+              <div className="py-4 text-center text-xs text-muted-foreground">
+                Бүх өртөө харагдсан ({stations.length})
+              </div>
+            )}
+
+            {stations.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Өртөө бүртгэгдээгүй байна. "Шинэ өртөө" товчийг дарж нэмнэ үү.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

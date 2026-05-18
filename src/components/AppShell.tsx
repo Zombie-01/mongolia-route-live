@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
-      <main className="relative flex-1 overflow-hidden">{children}</main>
+      <main className="relative flex-1 overflow-auto">{children}</main>
     </div>
   );
 }
