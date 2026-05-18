@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -33,6 +35,161 @@ export type Database = {
         }
         Relationships: []
       }
+      shipments: {
+        Row: {
+          capacity: string | null
+          cargo: string
+          cargo_items: Json
+          consignee: string | null
+          country: string
+          created_at: string
+          created_by: string | null
+          destination: string
+          driver_experience: number | null
+          driver_license: string | null
+          driver_name: string
+          driver_phone: string | null
+          driver_rating: number | null
+          eta: string | null
+          gps_online: boolean
+          id: string
+          last_gps_at: string | null
+          last_known_pos: Json | null
+          manual_override: boolean
+          origin: string
+          plate_number: string | null
+          position: Json
+          progress: number
+          road_route: Json | null
+          route: Json
+          shipper: string | null
+          speed: number
+          status: string
+          total_weight: string | null
+          tracking_id: string
+          type: string
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          capacity?: string | null
+          cargo?: string
+          cargo_items?: Json
+          consignee?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          destination?: string
+          driver_experience?: number | null
+          driver_license?: string | null
+          driver_name?: string
+          driver_phone?: string | null
+          driver_rating?: number | null
+          eta?: string | null
+          gps_online?: boolean
+          id?: string
+          last_gps_at?: string | null
+          last_known_pos?: Json | null
+          manual_override?: boolean
+          origin?: string
+          plate_number?: string | null
+          position?: Json
+          progress?: number
+          road_route?: Json | null
+          route?: Json
+          shipper?: string | null
+          speed?: number
+          status?: string
+          total_weight?: string | null
+          tracking_id: string
+          type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          capacity?: string | null
+          cargo?: string
+          cargo_items?: Json
+          consignee?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          destination?: string
+          driver_experience?: number | null
+          driver_license?: string | null
+          driver_name?: string
+          driver_phone?: string | null
+          driver_rating?: number | null
+          eta?: string | null
+          gps_online?: boolean
+          id?: string
+          last_gps_at?: string | null
+          last_known_pos?: Json | null
+          manual_override?: boolean
+          origin?: string
+          plate_number?: string | null
+          position?: Json
+          progress?: number
+          road_route?: Json | null
+          route?: Json
+          shipper?: string | null
+          speed?: number
+          status?: string
+          total_weight?: string | null
+          tracking_id?: string
+          type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
+      stops: {
+        Row: {
+          contact: string | null
+          created_at: string
+          eta: string | null
+          id: string
+          items: Json
+          location: string
+          position: Json
+          seq: number
+          shipment_id: string
+          status: string
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          eta?: string | null
+          id?: string
+          items?: Json
+          location?: string
+          position?: Json
+          seq?: number
+          shipment_id: string
+          status?: string
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          eta?: string | null
+          id?: string
+          items?: Json
+          location?: string
+          position?: Json
+          seq?: number
+          shipment_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stops_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -51,153 +208,6 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
-        }
-        Relationships: []
-      }
-      shipments: {
-        Row: {
-          id: string
-          tracking_id: string
-          status: string
-          type: string
-          country: string
-          cargo: string
-          origin: string
-          destination: string
-          route: Json
-          road_route: Json | null
-          progress: number
-          position: Json
-          speed: number
-          eta: string | null
-          driver_name: string
-          driver_phone: string | null
-          driver_license: string | null
-          driver_experience: number | null
-          driver_rating: number | null
-          vehicle_id: string | null
-          plate_number: string | null
-          capacity: string | null
-          total_weight: string | null
-          shipper: string | null
-          consignee: string | null
-          cargo_items: Json
-          gps_online: boolean
-          last_gps_at: string | null
-          last_known_pos: Json | null
-          manual_override: boolean
-          created_by: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          tracking_id: string
-          status?: string
-          type?: string
-          country?: string
-          cargo?: string
-          origin?: string
-          destination?: string
-          route?: Json
-          road_route?: Json | null
-          progress?: number
-          position?: Json
-          speed?: number
-          eta?: string | null
-          driver_name?: string
-          driver_phone?: string | null
-          driver_license?: string | null
-          driver_experience?: number | null
-          driver_rating?: number | null
-          vehicle_id?: string | null
-          plate_number?: string | null
-          capacity?: string | null
-          total_weight?: string | null
-          shipper?: string | null
-          consignee?: string | null
-          cargo_items?: Json
-          gps_online?: boolean
-          last_gps_at?: string | null
-          last_known_pos?: Json | null
-          manual_override?: boolean
-          created_by?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          tracking_id?: string
-          status?: string
-          type?: string
-          country?: string
-          cargo?: string
-          origin?: string
-          destination?: string
-          route?: Json
-          road_route?: Json | null
-          progress?: number
-          position?: Json
-          speed?: number
-          eta?: string | null
-          driver_name?: string
-          driver_phone?: string | null
-          driver_license?: string | null
-          driver_experience?: number | null
-          driver_rating?: number | null
-          vehicle_id?: string | null
-          plate_number?: string | null
-          capacity?: string | null
-          total_weight?: string | null
-          shipper?: string | null
-          consignee?: string | null
-          cargo_items?: Json
-          gps_online?: boolean
-          last_gps_at?: string | null
-          last_known_pos?: Json | null
-          manual_override?: boolean
-          created_by?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      stops: {
-        Row: {
-          id: string
-          shipment_id: string
-          seq: number
-          location: string
-          position: Json
-          items: Json
-          eta: string | null
-          status: string
-          contact: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          shipment_id: string
-          seq?: number
-          location?: string
-          position?: Json
-          items?: Json
-          eta?: string | null
-          status?: string
-          contact?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          shipment_id?: string
-          seq?: number
-          location?: string
-          position?: Json
-          items?: Json
-          eta?: string | null
-          status?: string
-          contact?: string | null
-          created_at?: string
         }
         Relationships: []
       }
