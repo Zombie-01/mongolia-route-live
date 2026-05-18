@@ -158,7 +158,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const persistField = useCallback(async (id: string, patch: Record<string, unknown>) => {
     try {
-      await supabase.from("shipments").update(patch).eq("id", id);
+      await supabase.from("shipments").update(patch as never).eq("id", id);
     } catch {
       // ignore
     }
