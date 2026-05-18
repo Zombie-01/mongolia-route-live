@@ -7,6 +7,7 @@ import { FleetMap } from "@/components/FleetMap";
 import type { Shipment } from "@/lib/demo-data";
 import { ShipmentDetailModal } from "@/components/ShipmentDetailModal";
 import { ShipmentFormModal } from "@/components/ShipmentFormModal";
+import { MobileViewToggle } from "@/components/MobileViewToggle";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
