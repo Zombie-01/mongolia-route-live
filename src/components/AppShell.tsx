@@ -14,6 +14,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ? [{ to: "/track", label: "Ачаа хайх" }]
         : [
             { to: "/dashboard", label: "Самбар" },
+            { to: "/drivers", label: "Жолооч нар" },
+            { to: "/stations", label: "Өртөө" },
             { to: "/track", label: "Ачаа хайх" },
           ];
 

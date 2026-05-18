@@ -22,6 +22,31 @@ import type { Json } from "@/integrations/supabase/types";
 
 type Role = "admin" | "driver" | "customer";
 
+export interface Driver {
+  id: string;
+  name: string;
+  phone: string;
+  license: string;
+  experience: number;
+  rating: number;
+  plateNumber: string;
+  vehicleId: string;
+  capacity: string;
+  type: "truck" | "wagon";
+  country: "MN" | "RU" | "CN";
+  active: boolean;
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  city: string;
+  position: LatLng;
+  type: string;
+  contact: string;
+  active: boolean;
+}
+
 interface StoreState {
   role: Role | null;
   name: string | null;
@@ -46,6 +71,16 @@ interface StoreState {
   overridePosition: (id: string, pos: LatLng) => void;
   refreshRoadRoute: (id: string) => Promise<void>;
   markStopDone: (shipmentId: string, stopSeq: number) => void;
+
+  drivers: Driver[];
+  addDriver: (d: Driver) => void;
+  updateDriver: (id: string, patch: Partial<Driver>) => void;
+  removeDriver: (id: string) => void;
+
+  stations: Station[];
+  addStation: (s: Station) => void;
+  updateStation: (id: string, patch: Partial<Station>) => void;
+  removeStation: (id: string) => void;
 }
 
 const Ctx = createContext<StoreState | null>(null);
@@ -126,6 +161,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dbReady, setDbReady] = useState(false);
   const tickRef = useRef<number | null>(null);
   const gpsWatchers = useRef<Map<string, number>>(new Map());
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [stations, setStations] = useState<Station[]>([]);
 
   const loadShipmentsFromDb = useCallback(async () => {
     try {
@@ -153,6 +190,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setDbReady(true);
     } catch {
       setDbReady(false);
+    }
+  }, []);
+
+  const loadDriversFromDb = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("drivers").select("*").order("name");
+      if (error || !data) throw error;
+      setDrivers(
+        data.map((r) => ({
+          id: r.id as string,
+          name: r.name as string,
+          phone: r.phone as string,
+          license: r.license as string,
+          experience: (r.experience as number) ?? 0,
+          rating: (r.rating as number) ?? 4.5,
+          plateNumber: r.plate_number as string,
+          vehicleId: r.vehicle_id as string,
+          capacity: r.capacity as string,
+          type: (r.type as "truck" | "wagon") ?? "truck",
+          country: (r.country as "MN" | "RU" | "CN") ?? "MN",
+          active: (r.active as boolean) ?? true,
+        })),
+      );
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const loadStationsFromDb = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("stations").select("*").order("name");
+      if (error || !data) throw error;
+      setStations(
+        data.map((r) => ({
+          id: r.id as string,
+          name: r.name as string,
+          city: r.city as string,
+          position: (r.position as LatLng) ?? [0, 0],
+          type: (r.type as string) ?? "warehouse",
+          contact: (r.contact as string) ?? "",
+          active: (r.active as boolean) ?? true,
+        })),
+      );
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -389,9 +471,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ---------------- Load from DB on auth ----------------
   useEffect(() => {
     if (!role) return;
-    // Always try to load from DB, regardless of auth mode
     loadShipmentsFromDb();
-  }, [role, loadShipmentsFromDb]);
+    loadDriversFromDb();
+    loadStationsFromDb();
+  }, [role, loadShipmentsFromDb, loadDriversFromDb, loadStationsFromDb]);
 
   // ---------------- Road geometry (background) ----------------
   useEffect(() => {
@@ -676,6 +759,90 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .then(() => {});
   };
 
+  // ---------------- Driver CRUD ----------------
+  const addDriver = (d: Driver) => {
+    setDrivers((prev) => [...prev, d]);
+    supabase
+      .from("drivers")
+      .insert({
+        name: d.name,
+        phone: d.phone,
+        license: d.license,
+        experience: d.experience,
+        rating: d.rating,
+        plate_number: d.plateNumber,
+        vehicle_id: d.vehicleId,
+        capacity: d.capacity,
+        type: d.type,
+        country: d.country,
+        active: d.active,
+      })
+      .select("id")
+      .single()
+      .then(({ data }) => {
+        if (data?.id) setDrivers((prev) => prev.map((x) => (x.id === d.id ? { ...x, id: data.id } : x)));
+      });
+  };
+
+  const updateDriver = (id: string, patch: Partial<Driver>) => {
+    setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.phone !== undefined) row.phone = patch.phone;
+    if (patch.license !== undefined) row.license = patch.license;
+    if (patch.experience !== undefined) row.experience = patch.experience;
+    if (patch.rating !== undefined) row.rating = patch.rating;
+    if (patch.plateNumber !== undefined) row.plate_number = patch.plateNumber;
+    if (patch.vehicleId !== undefined) row.vehicle_id = patch.vehicleId;
+    if (patch.capacity !== undefined) row.capacity = patch.capacity;
+    if (patch.type !== undefined) row.type = patch.type;
+    if (patch.country !== undefined) row.country = patch.country;
+    if (patch.active !== undefined) row.active = patch.active;
+    supabase.from("drivers").update(row).eq("id", id).then(() => {});
+  };
+
+  const removeDriver = (id: string) => {
+    setDrivers((prev) => prev.filter((d) => d.id !== id));
+    supabase.from("drivers").delete().eq("id", id).then(() => {});
+  };
+
+  // ---------------- Station CRUD ----------------
+  const addStation = (s: Station) => {
+    setStations((prev) => [...prev, s]);
+    supabase
+      .from("stations")
+      .insert({
+        name: s.name,
+        city: s.city,
+        position: s.position as unknown as Json,
+        type: s.type,
+        contact: s.contact,
+        active: s.active,
+      })
+      .select("id")
+      .single()
+      .then(({ data }) => {
+        if (data?.id) setStations((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
+      });
+  };
+
+  const updateStation = (id: string, patch: Partial<Station>) => {
+    setStations((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    const row: Record<string, unknown> = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.city !== undefined) row.city = patch.city;
+    if (patch.position !== undefined) row.position = patch.position as unknown as Json;
+    if (patch.type !== undefined) row.type = patch.type;
+    if (patch.contact !== undefined) row.contact = patch.contact;
+    if (patch.active !== undefined) row.active = patch.active;
+    supabase.from("stations").update(row).eq("id", id).then(() => {});
+  };
+
+  const removeStation = (id: string) => {
+    setStations((prev) => prev.filter((s) => s.id !== id));
+    supabase.from("stations").delete().eq("id", id).then(() => {});
+  };
+
   return (
     <Ctx.Provider
       value={{
@@ -699,6 +866,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         overridePosition,
         refreshRoadRoute,
         markStopDone,
+        drivers,
+        addDriver,
+        updateDriver,
+        removeDriver,
+        stations,
+        addStation,
+        updateStation,
+        removeStation,
       }}
     >
       {children}

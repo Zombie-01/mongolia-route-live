@@ -10,6 +10,7 @@ import type {
   VehicleType,
   Dropoff,
 } from "@/lib/demo-data";
+import { useStore, type Driver } from "@/lib/store";
 
 interface Props {
   open: boolean;
@@ -69,6 +70,63 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const [originName, setOriginName] = useState(initial?.origin ?? "Улаанбаатар");
   const [destName, setDestName] = useState(initial?.destination ?? "Дархан");
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
+
+  function DriverSelect() {
+    const { drivers } = useStore();
+    const activeDrivers = drivers.filter((d) => d.active);
+    const selectedDriver = drivers.find(
+      (d) => d.name === form.driver && d.plateNumber === form.plateNumber,
+    );
+
+    const handleDriverSelect = (driverId: string) => {
+      const d = drivers.find((x) => x.id === driverId);
+      if (!d) return;
+      setForm((f) => ({
+        ...f,
+        driver: d.name,
+        driverPhone: d.phone,
+        driverLicense: d.license,
+        driverExperience: `${d.experience} жил`,
+        driverRating: d.rating,
+        plateNumber: d.plateNumber,
+        vehicleId: d.vehicleId,
+        capacity: d.capacity,
+        type: d.type,
+        country: d.country,
+      }));
+    };
+
+    return (
+      <div className="space-y-3">
+        <Field label="Жолооч сонгох" wide>
+          <select
+            value={selectedDriver?.id ?? ""}
+            onChange={(e) => handleDriverSelect(e.target.value)}
+            className="inp"
+          >
+            <option value="">-- Жолооч сонгох --</option>
+            {activeDrivers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} · {d.plateNumber} · {d.type === "wagon" ? "🚆" : "🚚"} {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {selectedDriver && (
+          <div className="rounded-lg border border-border bg-card/40 p-3 text-xs text-muted-foreground">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <span>Утас: {form.driverPhone}</span>
+              <span>Үнэмлэх: {form.driverLicense}</span>
+              <span>Туршлага: {form.driverExperience}</span>
+              <span>Дугаар: {form.plateNumber}</span>
+              <span>Даац: {form.capacity}</span>
+              <span>Үнэлгээ: ⭐ {form.driverRating.toFixed(1)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -391,52 +449,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               </Section>
 
               <Section title="Жолооч / Бригад">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <Field label="Нэр" wide>
-                    <input
-                      value={form.driver}
-                      onChange={(e) => setForm({ ...form, driver: e.target.value })}
-                      className="inp"
-                    />
-                  </Field>
-                  <Field label="Утас">
-                    <input
-                      value={form.driverPhone}
-                      onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
-                      className="inp"
-                    />
-                  </Field>
-                  <Field label="Үнэмлэх">
-                    <input
-                      value={form.driverLicense}
-                      onChange={(e) => setForm({ ...form, driverLicense: e.target.value })}
-                      className="inp"
-                    />
-                  </Field>
-                  <Field label="Туршлага">
-                    <input
-                      value={form.driverExperience}
-                      onChange={(e) => setForm({ ...form, driverExperience: e.target.value })}
-                      className="inp"
-                    />
-                  </Field>
-                  <Field label="Улсын дугаар">
-                    <input
-                      value={form.plateNumber}
-                      onChange={(e) =>
-                        setForm({ ...form, plateNumber: e.target.value, vehicleId: e.target.value })
-                      }
-                      className="inp"
-                    />
-                  </Field>
-                  <Field label="Даац">
-                    <input
-                      value={form.capacity}
-                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-                      className="inp"
-                    />
-                  </Field>
-                </div>
+                <DriverSelect />
               </Section>
 
               <Section title="Талууд">
