@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
+import { MobileViewToggle } from "@/components/MobileViewToggle";
 
 export const Route = createFileRoute("/track")({
   component: TrackPage,
