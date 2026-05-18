@@ -29,7 +29,7 @@ function TrackPage() {
 
       <div className="grid h-full grid-cols-1 lg:grid-cols-[420px_1fr]">
         <aside
-          className={`z-10 flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-5 backdrop-blur ${
+          className={`z-10 flex flex-col gap-4 overflow-y-auto border-r border-border bg-background/40 p-5 pb-24 backdrop-blur lg:pb-5 ${
             mobileView === "list" ? "flex" : "hidden lg:flex"
           }`}
         >
