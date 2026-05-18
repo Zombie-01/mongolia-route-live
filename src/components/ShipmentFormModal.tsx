@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { CITIES, etaFromKm, suggestWaypoints, totalRouteKm, findCity } from "@/lib/cities";
+import { etaFromKm, totalRouteKm, distanceKm } from "@/lib/cities";
 import type {
   CargoItem,
   LatLng,
@@ -10,7 +10,7 @@ import type {
   VehicleType,
   Dropoff,
 } from "@/lib/demo-data";
-import { useStore, type Driver } from "@/lib/store";
+import { useStore, type Driver, type Station } from "@/lib/store";
 
 interface Props {
   open: boolean;
@@ -19,16 +19,16 @@ interface Props {
   onSave: (s: Shipment) => void;
 }
 
-function emptyShipment(): Shipment {
+function emptyShipment(stations: Station[]): Shipment {
   const id = `s_${Math.random().toString(36).slice(2, 8)}`;
-  const ub = CITIES.find((c) => c.name === "Улаанбаатар")!;
-  const dest = CITIES.find((c) => c.name === "Дархан")!;
+  const ub = stations[0] || { name: "Улаанбаатар", position: [47.9184, 106.9177] as LatLng };
+  const dest = stations[1] || { name: "Дархан", position: [49.4861, 105.9622] as LatLng };
   const route: LatLng[] = [ub.position, dest.position];
   const km = totalRouteKm(route);
   return {
     id,
     trackingId: `MN-${Math.floor(2100 + Math.random() * 900)}`,
-    cargo: "Малын тэжээл",
+    cargo: "Ачаа",
     origin: ub.name,
     destination: dest.name,
     driver: "",
@@ -47,15 +47,15 @@ function emptyShipment(): Shipment {
     driverRating: 4.5,
     plateNumber: "",
     capacity: "20 тн",
-    shipper: "Тэжээл Трейд ХХК",
+    shipper: "",
     consignee: "",
     totalWeight: "0 тн",
-    cargoItems: [{ name: "Овьёос", qty: 5 }],
+    cargoItems: [{ name: "Ачаа", qty: 1 }],
     dropoffs: [
       {
         location: dest.name,
         position: dest.position,
-        items: [{ name: "Овьёос", qty: 5 }],
+        items: [{ name: "Ачаа", qty: 1 }],
         eta: etaFromKm(km),
         status: "pending",
       },
@@ -64,11 +64,12 @@ function emptyShipment(): Shipment {
 }
 
 export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
+  const { stations } = useStore();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const [form, setForm] = useState<Shipment>(() => initial ?? emptyShipment());
-  const [originName, setOriginName] = useState(initial?.origin ?? "Улаанбаатар");
-  const [destName, setDestName] = useState(initial?.destination ?? "Дархан");
+  const [form, setForm] = useState<Shipment>(() => initial ?? emptyShipment(stations));
+  const [originName, setOriginName] = useState(initial?.origin ?? stations[0]?.name ?? "Улаанбаатар");
+  const [destName, setDestName] = useState(initial?.destination ?? stations[1]?.name ?? "Дархан");
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
 
   function DriverSelect() {
@@ -166,23 +167,19 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const f = initial ?? emptyShipment();
+    const f = initial ?? emptyShipment(stations);
     setForm(f);
     setOriginName(f.origin);
     setDestName(f.destination);
     setWaypointNames([]);
-  }, [open, initial]);
+  }, [open, initial, stations]);
 
-  const originCity = useMemo(() => findCity(originName), [originName]);
-  const destCity = useMemo(() => findCity(destName), [destName]);
+  const originStation = useMemo(() => stations.find((s) => s.name === originName), [originName, stations]);
+  const destStation = useMemo(() => stations.find((s) => s.name === destName), [destName, stations]);
 
   const autoSuggested = useMemo(() => {
-    if (!originCity || !destCity) return [] as string[];
-    const pts = suggestWaypoints(originCity.position, destCity.position, 4);
-    return pts
-      .map((p) => CITIES.find((c) => c.position[0] === p[0] && c.position[1] === p[1])?.name)
-      .filter((n): n is string => Boolean(n));
-  }, [originCity, destCity]);
+    return [] as string[];
+  }, []);
 
   useEffect(
     () => {
@@ -194,23 +191,14 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   );
 
   const computed = useMemo(() => {
-    if (!originCity || !destCity) return null;
-    const wpPositions = waypointNames
-      .map((n) => findCity(n)?.position)
-      .filter((p): p is LatLng => Boolean(p));
-    const route: LatLng[] = [originCity.position, ...wpPositions, destCity.position];
+    if (!originStation || !destStation) return null;
+    const route: LatLng[] = [originStation.position, destStation.position];
     const km = totalRouteKm(route);
     const eta = etaFromKm(km);
     const total = form.cargoItems.reduce((sum, c) => sum + (Number(c.qty) || 0), 0);
     return { route, km, eta, total };
-  }, [originCity, destCity, waypointNames, form.cargoItems]);
+  }, [originStation, destStation, form.cargoItems]);
 
-  const toggleWaypoint = (name: string) => {
-    setWaypointNames((prev) => {
-      if (prev.includes(name)) return prev.filter((n) => n !== name);
-      return [...prev, name];
-    });
-  };
 
   const updateItem = (i: number, patch: Partial<CargoItem>) =>
     setForm((f) => ({
@@ -279,7 +267,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   };
 
   const handleSave = () => {
-    if (!computed || !originCity || !destCity) return;
+    if (!computed || !originStation || !destStation) return;
     const total = computed.total;
     const finalShipment: Shipment = {
       ...form,
@@ -293,7 +281,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       dropoffs: form.dropoffs.map((d) => ({
         ...d,
         location: d.location || destName,
-        position: d.position || destCity.position,
+        position: d.position || destStation.position,
         eta: d.eta || computed.eta,
       })),
     };
@@ -395,91 +383,38 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
               <Section title="Маршрут">
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Эхлэх хот">
+                  <Field label="Эхлэх өртөө">
                     <select
                       value={originName}
                       onChange={(e) => setOriginName(e.target.value)}
                       className="inp"
                     >
-                      {CITIES.map((c) => (
-                        <option key={c.name} value={c.name}>
-                          {c.name}
+                      {stations.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name}
                         </option>
                       ))}
                     </select>
                   </Field>
-                  <Field label="Хүрэх хот">
+                  <Field label="Хүрэх өртөө">
                     <select
                       value={destName}
                       onChange={(e) => setDestName(e.target.value)}
                       className="inp"
                     >
-                      {CITIES.map((c) => (
-                        <option key={c.name} value={c.name}>
-                          {c.name}
+                      {stations.map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.name}
                         </option>
                       ))}
                     </select>
                   </Field>
                 </div>
 
-                <div className="mt-3">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Дундын зогсоол / өртөө (авто санал)
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWaypointNames(autoSuggested)}
-                      className="text-[11px] text-primary hover:underline"
-                    >
-                      Автоматаар тааруулах
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-card/40 p-2">
-                    {/* Show suggested cities first, then a limited set of other cities for performance */}
-                    {(() => {
-                      const otherCities = CITIES.filter(
-                        (c) => c.name !== originName && c.name !== destName,
-                      );
-                      const suggestedNames = autoSuggested.filter((n) =>
-                        otherCities.some((c) => c.name === n),
-                      );
-                      const remaining = otherCities
-                        .filter((c) => !suggestedNames.includes(c.name))
-                        .slice(0, 18);
-                      const displayed = [...suggestedNames, ...remaining.map((c) => c.name)];
-
-                      return displayed.map((name) => {
-                        const c = CITIES.find((x) => x.name === name)!;
-                        const active = waypointNames.includes(c.name);
-                        const suggested = suggestedNames.includes(c.name);
-                        return (
-                          <button
-                            key={c.name}
-                            type="button"
-                            onClick={() => toggleWaypoint(c.name)}
-                            className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-                              active
-                                ? "border-primary/50 bg-primary/20 text-primary"
-                                : suggested
-                                  ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
-                                  : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {c.name}
-                          </button>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-
                 {computed && (
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <Stat label="Зайн урт" value={`${Math.round(computed.km)} км`} />
-                    <Stat label="Зорчих хугацаа (авто)" value={computed.eta} />
-                    <Stat label="Зогсоол" value={`${waypointNames.length} цэг`} />
+                    <Stat label="Зорчих хугацаа" value={computed.eta} />
                   </div>
                 )}
               </Section>
