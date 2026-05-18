@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
+import { MobileViewToggle } from "@/components/MobileViewToggle";
 import type { ShipmentStatus } from "@/lib/demo-data";
 
 export const Route = createFileRoute("/driver")({
