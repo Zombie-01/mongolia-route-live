@@ -57,15 +57,89 @@ CREATE TABLE IF NOT EXISTS public.stops (
 ALTER TABLE public.stops ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS stops_shipment_id_idx ON public.stops(shipment_id);
 
-CREATE POLICY "shipments_select_all" ON public.shipments FOR SELECT TO authenticated USING (true);
-CREATE POLICY "shipments_admin_insert" ON public.shipments FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'));
-CREATE POLICY "shipments_admin_update" ON public.shipments FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));
-CREATE POLICY "shipments_admin_delete" ON public.shipments FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'shipments_select_all'
+      AND schemaname = 'public'
+      AND tablename = 'shipments'
+  ) THEN
+    EXECUTE 'CREATE POLICY "shipments_select_all" ON public.shipments FOR SELECT TO authenticated USING (true)';
+  END IF;
 
-CREATE POLICY "stops_select_all" ON public.stops FOR SELECT TO authenticated USING (true);
-CREATE POLICY "stops_admin_insert" ON public.stops FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'));
-CREATE POLICY "stops_admin_update" ON public.stops FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));
-CREATE POLICY "stops_admin_delete" ON public.stops FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'shipments_admin_insert'
+      AND schemaname = 'public'
+      AND tablename = 'shipments'
+  ) THEN
+    EXECUTE 'CREATE POLICY "shipments_admin_insert" ON public.shipments FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), ''admin''))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'shipments_admin_update'
+      AND schemaname = 'public'
+      AND tablename = 'shipments'
+  ) THEN
+    EXECUTE 'CREATE POLICY "shipments_admin_update" ON public.shipments FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), ''admin'')) WITH CHECK (public.has_role(auth.uid(), ''admin''))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'shipments_admin_delete'
+      AND schemaname = 'public'
+      AND tablename = 'shipments'
+  ) THEN
+    EXECUTE 'CREATE POLICY "shipments_admin_delete" ON public.shipments FOR DELETE TO authenticated USING (public.has_role(auth.uid(), ''admin''))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'stops_select_all'
+      AND schemaname = 'public'
+      AND tablename = 'stops'
+  ) THEN
+    EXECUTE 'CREATE POLICY "stops_select_all" ON public.stops FOR SELECT TO authenticated USING (true)';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'stops_admin_insert'
+      AND schemaname = 'public'
+      AND tablename = 'stops'
+  ) THEN
+    EXECUTE 'CREATE POLICY "stops_admin_insert" ON public.stops FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), ''admin''))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'stops_admin_update'
+      AND schemaname = 'public'
+      AND tablename = 'stops'
+  ) THEN
+    EXECUTE 'CREATE POLICY "stops_admin_update" ON public.stops FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), ''admin'')) WITH CHECK (public.has_role(auth.uid(), ''admin''))';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE policyname = 'stops_admin_delete'
+      AND schemaname = 'public'
+      AND tablename = 'stops'
+  ) THEN
+    EXECUTE 'CREATE POLICY "stops_admin_delete" ON public.stops FOR DELETE TO authenticated USING (public.has_role(auth.uid(), ''admin''))';
+  END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -86,7 +160,31 @@ INSERT INTO public.shipments (id, tracking_id, status, type, country, cargo, ori
 ('a7b8c9d0-e1f2-3456-0123-456789012345','RU-W-7782','in_transit','wagon','RU','Хивэг, овьёосны хүрз (ОХУ)','Улаан-Үд, ОХУ','Эрдэнэт','[[51.834,107.584],[50.4,106.5],[49.8,105.5],[49.0277,104.0444]]',0.15,'[47.9184,106.9177]',55,'12ц 40м','Галт тэрэг бр. №21 — С. Петров','+7 924 700 8899','RZD-Class A',16,4.7,'ВАГОН-3318','ВАГОН-3318 / 3 вагон','195 тн','180 тн','Сибирь-Агро','Эрдэнэт Хүнс ХХК','[{"name":"Хивэг (улаан буудайн)","qty":120,"note":"2 вагон"},{"name":"Овьёосны хүрз","qty":60,"note":"1 вагон"}]',true),
 ('b8c9d0e1-f2a3-4567-1234-567890123456','CN-W-9012','in_transit','wagon','CN','Хорголжин тэжээл (БНХАУ)','Эрээн, БНХАУ','Улаанбаатар','[[43.6533,111.9779],[43.7228,111.8953],[44.5,111.0],[45.5,109.5],[47.0,108.0],[47.9184,106.9177]]',0.58,'[47.9184,106.9177]',62,'6ц 05м','Галт тэрэг бр. №07 — 王 Wang','+86 138 7000 4422','CR-Class A',12,4.6,'ВАГОН-5540','ВАГОН-5540 / 5 вагон','325 тн','300 тн','Inner Mongolia Feed Group','Тэжээл Трейд ХХК','[{"name":"Хорголжин тэжээл (premium)","qty":200,"note":"3 вагон"},{"name":"Эрдэс/витамин premix","qty":60,"note":"1 вагон"},{"name":"Малын давс block","qty":40,"note":"1 вагон"}]',true),
 ('c9d0e1f2-a3b4-5678-2345-678901234567','CN-W-9013','delayed','wagon','CN','Soybean meal + premix (БНХАУ)','Тяньжин, БНХАУ','Дархан','[[39.3434,117.3616],[42.0,114.0],[43.7228,111.8953],[45.5,109.5],[47.0,108.0],[47.9184,106.9177],[48.3,106.85],[49.486,105.962]]',0.41,'[47.9184,106.9177]',38,'22ц 10м','Галт тэрэг бр. №31 — 李 Li','+86 139 2200 5577','CR-Class A',9,4.4,'ВАГОН-6677','ВАГОН-6677 / 4 вагон','260 тн','220 тн','Tianjin Agro Export','Дархан-Уул Тэжээл ХХК','[{"name":"Шар буурцагны хүрз (soybean meal)","qty":130,"note":"2 вагон"},{"name":"Эрдэс premix","qty":50},{"name":"Хорголжин тэжээл","qty":40}]',true)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (tracking_id) DO UPDATE SET
+  status = EXCLUDED.status,
+  type = EXCLUDED.type,
+  country = EXCLUDED.country,
+  cargo = EXCLUDED.cargo,
+  origin = EXCLUDED.origin,
+  destination = EXCLUDED.destination,
+  route = EXCLUDED.route,
+  progress = EXCLUDED.progress,
+  position = EXCLUDED.position,
+  speed = EXCLUDED.speed,
+  eta = EXCLUDED.eta,
+  driver_name = EXCLUDED.driver_name,
+  driver_phone = EXCLUDED.driver_phone,
+  driver_license = EXCLUDED.driver_license,
+  driver_experience = EXCLUDED.driver_experience,
+  driver_rating = EXCLUDED.driver_rating,
+  vehicle_id = EXCLUDED.vehicle_id,
+  plate_number = EXCLUDED.plate_number,
+  capacity = EXCLUDED.capacity,
+  total_weight = EXCLUDED.total_weight,
+  shipper = EXCLUDED.shipper,
+  consignee = EXCLUDED.consignee,
+  cargo_items = EXCLUDED.cargo_items,
+  gps_online = EXCLUDED.gps_online;
 
 INSERT INTO public.stops (shipment_id, seq, location, position, items, eta, status, contact) VALUES
 ('a1b2c3d4-e5f6-7890-abcd-ef1234567890',1,'Дархан — Төв агуулах','[49.486,105.962]','[{"name":"Овьёос","qty":6},{"name":"Хорголжин тэжээл","qty":4}]','3ц 40м','pending','Г. Сүрэн +976 9911 5544'),

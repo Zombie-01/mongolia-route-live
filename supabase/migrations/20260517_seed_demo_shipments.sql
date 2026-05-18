@@ -284,7 +284,34 @@ INSERT INTO public.shipments (
     true,
     NOW(),
     NOW()
-  );
+  )
+  ON CONFLICT (tracking_id) DO UPDATE SET
+    status = EXCLUDED.status,
+    type = EXCLUDED.type,
+    country = EXCLUDED.country,
+    cargo = EXCLUDED.cargo,
+    origin = EXCLUDED.origin,
+    destination = EXCLUDED.destination,
+    route = EXCLUDED.route,
+    progress = EXCLUDED.progress,
+    position = EXCLUDED.position,
+    speed = EXCLUDED.speed,
+    eta = EXCLUDED.eta,
+    driver_name = EXCLUDED.driver_name,
+    driver_phone = EXCLUDED.driver_phone,
+    driver_license = EXCLUDED.driver_license,
+    driver_experience = EXCLUDED.driver_experience,
+    driver_rating = EXCLUDED.driver_rating,
+    vehicle_id = EXCLUDED.vehicle_id,
+    plate_number = EXCLUDED.plate_number,
+    capacity = EXCLUDED.capacity,
+    total_weight = EXCLUDED.total_weight,
+    shipper = EXCLUDED.shipper,
+    consignee = EXCLUDED.consignee,
+    cargo_items = EXCLUDED.cargo_items,
+    gps_online = EXCLUDED.gps_online,
+    created_at = EXCLUDED.created_at,
+    updated_at = EXCLUDED.updated_at;
 
 -- Insert stops for each shipment
 -- Shipment MN-2041
