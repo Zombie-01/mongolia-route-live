@@ -8,7 +8,7 @@ export function MobileViewToggle({
   onChange: (v: View) => void;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center lg:hidden">
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[1100] flex justify-center lg:hidden">
       <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-card/90 p-1 text-xs shadow-lg backdrop-blur-md">
         {(["map", "list"] as const).map((v) => (
           <button
