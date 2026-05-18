@@ -25,20 +25,7 @@ function TrackPage() {
 
   return (
     <AppShell>
-      {/* Mobile toggle */}
-      <div className="absolute left-1/2 top-2 z-30 -translate-x-1/2 rounded-full border border-border bg-card/80 p-0.5 text-xs backdrop-blur lg:hidden">
-        {(["map", "list"] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setMobileView(v)}
-            className={`rounded-full px-3 py-1 transition-colors ${
-              mobileView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {v === "map" ? "🗺 Газрын зураг" : "📋 Жагсаалт"}
-          </button>
-        ))}
-      </div>
+      <MobileViewToggle value={mobileView} onChange={setMobileView} />
 
       <div className="grid h-full grid-cols-1 lg:grid-cols-[420px_1fr]">
         <aside
