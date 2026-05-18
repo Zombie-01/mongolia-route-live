@@ -55,20 +55,7 @@ function DashboardPage() {
 
   return (
     <AppShell>
-      {/* Mobile bottom nav toggle */}
-      <div className=" bottom-4  border border-border bg-card/90 p-0.5 text-xs backdrop-blur lg:hidden pointer-events-auto">
-        {(["map", "list"] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setMobileView(v)}
-            className={`rounded-full px-3 py-[5px] transition-colors ${
-              mobileView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-            }`}
-          >
-            {v === "map" ? "🗺 Газрын зураг" : "📋 Жагсаалт"}
-          </button>
-        ))}
-      </div>
+      <MobileViewToggle value={mobileView} onChange={setMobileView} />
 
       <div className="grid h-full grid-cols-1 lg:grid-cols-[380px_1fr]">
         {/* Sidebar / List */}
