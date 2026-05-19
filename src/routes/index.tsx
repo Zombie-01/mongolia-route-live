@@ -16,10 +16,17 @@ const roles: { id: Role; label: string; emoji: string; desc: string; to: string 
 ];
 
 function LoginPage() {
-  const { loginDemo, role, authMode } = useStore();
+  const { loginDemo, loginWithEmail, role, authMode } = useStore();
   const nav = useNavigate();
   const [loading, setLoading] = useState<Role | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  // Email/password login state
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   // Auto-navigate once a role is established
   useEffect(() => {
@@ -36,7 +43,20 @@ function LoginPage() {
       setErr(error);
       setLoading(null);
     }
-    // Navigation happens automatically via the effect above when role resolves.
+  };
+
+  const handleEmailLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setEmailErr("И-мэйл болон нууц үг оруулна уу");
+      return;
+    }
+    setEmailErr(null);
+    setEmailLoading(true);
+    const { error } = await loginWithEmail(email, password);
+    if (error) {
+      setEmailErr(error);
+      setEmailLoading(false);
+    }
   };
 
   return (
@@ -107,6 +127,69 @@ function LoginPage() {
           </div>
         )}
 
+        {/* Email/Password login section */}
+        <div className="mt-8">
+          <button
+            onClick={() => setShowEmailLogin(!showEmailLogin)}
+            className="mx-auto flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <span className="h-px flex-1 bg-border" />
+            <span className="shrink-0 px-4">Эсвэл и-мэйлээр нэвтрэх</span>
+            <span className="h-px flex-1 bg-border" />
+          </button>
+
+          <AnimatePresence>
+            {showEmailLogin && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mx-auto mt-6 max-w-md rounded-2xl border border-border bg-card/60 p-6 backdrop-blur">
+                  <div className="mb-4 text-center text-sm font-medium">И-мэйлээр нэвтрэх</div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">И-мэйл</label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => { setEmail(e.target.value); setEmailErr(null); }}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        placeholder="driver@company.mn"
+                        onKeyDown={(e) => e.key === "Enter" && handleEmailLogin()}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">Нууц үг</label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); setEmailErr(null); }}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        placeholder="••••••"
+                        onKeyDown={(e) => e.key === "Enter" && handleEmailLogin()}
+                      />
+                    </div>
+                    {emailErr && (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {emailErr}
+                      </div>
+                    )}
+                    <button
+                      onClick={handleEmailLogin}
+                      disabled={emailLoading}
+                      className="w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {emailLoading ? "Нэвтэрч байна..." : "Нэвтрэх"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         <div className="mt-8 text-center text-xs text-muted-foreground">
           {authMode === "supabase"
             ? "Supabase Cloud-р нэвтэрсэн · Бодит хэрэглэгчид"
@@ -115,7 +198,7 @@ function LoginPage() {
       </motion.div>
 
       <AnimatePresence>
-        {loading && (
+        {(loading || emailLoading) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -124,7 +207,7 @@ function LoginPage() {
           >
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <div className="text-sm text-muted-foreground">Демо өгөгдөл ачаалж байна…</div>
+              <div className="text-sm text-muted-foreground">Нэвтэрч байна…</div>
             </div>
           </motion.div>
         )}

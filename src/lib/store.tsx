@@ -52,8 +52,16 @@ interface StoreState {
   name: string | null;
   loading: boolean;
   loginDemo: (role: Role) => Promise<{ error?: string }>;
+  loginWithEmail: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   authMode: "supabase" | "mock";
+  createUserAccount: (data: {
+    email: string;
+    password: string;
+    role: "driver" | "customer";
+    display_name: string;
+    phone?: string;
+  }) => Promise<{ user_id?: string; error?: string }>;
 
   shipments: Shipment[];
   setStatus: (id: string, status: ShipmentStatus) => void;
@@ -585,6 +593,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithEmail = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      setAuthMode("supabase");
+      return {};
+    } catch {
+      return { error: "Нэвтрэхэд алдаа гарлаа" };
+    }
+  };
+
+  const createUserAccount = async (data: {
+    email: string;
+    password: string;
+    role: "driver" | "customer";
+    display_name: string;
+    phone?: string;
+  }) => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) return { error: "Нэвтрээгүй байна" };
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+      if (!res.ok) return { error: result.error || "Хэрэглэгч үүсгэхэд алдаа гарлаа" };
+      return { user_id: result.user_id };
+    } catch {
+      return { error: "Сервертэй холбогдоход алдаа гарлаа" };
+    }
+  };
+
   const logout = async () => {
     try {
       await supabase.auth.signOut();
@@ -846,8 +895,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         name,
         loading,
         loginDemo,
+        loginWithEmail,
         logout,
         authMode,
+        createUserAccount,
         shipments,
         setStatus,
         toggleSharing,

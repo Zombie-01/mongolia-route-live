@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/customers")({
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/customers")({
 
 interface Customer {
   id: string;
+  user_id?: string | null;
   name: string;
   phone?: string | null;
   email?: string | null;
@@ -22,9 +24,14 @@ const PAGE_SIZE = 10;
 
 function CustomersPage() {
   const nav = useNavigate();
+  const queryClient = useQueryClient();
+  const { role, loading, createUserAccount } = useStore();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [form, setForm] = useState<Customer>({ id: "", name: "" });
+  const [accountPassword, setAccountPassword] = useState("");
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -43,25 +50,47 @@ function CustomersPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      Route.useSearch;
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (data: Customer) => {
+    mutationFn: async (data: { customer: Customer; password?: string }) => {
+      const c = data.customer;
+
       if (editing) {
         const { error } = await supabase
           .from("customers")
-          .update({ name: data.name, phone: data.phone, email: data.email, address: data.address })
-          .eq("id", data.id);
+          .update({ name: c.name, phone: c.phone, email: c.email, address: c.address })
+          .eq("id", c.id);
         if (error) throw error;
       } else {
+        // Create auth account first
+        if (!c.email || !data.password) {
+          throw new Error("И-мэйл болон нууц үг оруулна уу");
+        }
+        if (data.password.length < 6) {
+          throw new Error("Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой");
+        }
+
+        const result = await createUserAccount({
+          email: c.email,
+          password: data.password,
+          role: "customer",
+          display_name: c.name,
+          phone: c.phone ?? undefined,
+        });
+
+        if (result.error) throw new Error(result.error);
+
+        // Insert customer record with user_id
         const { error } = await supabase.from("customers").insert([
           {
-            name: data.name,
-            phone: data.phone || null,
-            email: data.email || null,
-            address: data.address || null,
+            name: c.name,
+            phone: c.phone || null,
+            email: c.email,
+            address: c.address || null,
+            user_id: result.user_id ?? null,
           },
         ]);
         if (error) throw error;
@@ -71,8 +100,21 @@ function CustomersPage() {
       setFormOpen(false);
       setEditing(null);
       setForm({ id: "", name: "" });
+      setAccountPassword("");
+      setAccountError(null);
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (err: Error) => {
+      setAccountError(err.message);
+      setCreatingAccount(false);
     },
   });
+
+  useEffect(() => {
+    if (loading) return;
+    if (!role) nav({ to: "/" });
+    else if (role !== "admin") nav({ to: "/driver" });
+  }, [role, loading, nav]);
 
   useEffect(() => {
     if (!sentinelRef.current) return;
@@ -91,6 +133,8 @@ function CustomersPage() {
   const openNew = () => {
     setEditing(null);
     setForm({ id: "", name: "" });
+    setAccountPassword("");
+    setAccountError(null);
     setFormOpen(true);
   };
 
@@ -102,11 +146,15 @@ function CustomersPage() {
 
   const handleSave = () => {
     if (!form.name.trim()) return;
-    saveMutation.mutate(form);
+    setCreatingAccount(true);
+    setAccountError(null);
+    saveMutation.mutate({ customer: form, password: editing ? undefined : accountPassword });
   };
 
   const visibleCustomers = customers.slice(0, visibleCount);
   const hasMore = visibleCount < customers.length;
+
+  if (loading || role !== "admin") return null;
 
   return (
     <AppShell>
@@ -138,7 +186,14 @@ function CustomersPage() {
                   <motion.div key={c.id} layout className="glass rounded-xl p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-base font-semibold">{c.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-semibold">{c.name}</span>
+                          {c.user_id && (
+                            <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">
+                              Бүртгэлтэй
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
                           {c.phone && <span>Утас: {c.phone}</span>}
                           {c.email && <span>Email: {c.email}</span>}
@@ -215,6 +270,34 @@ function CustomersPage() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                {/* Auth account section — only for new customers */}
+                {!editing && (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                      Нэвтрэх бүртгэл үүсгэх
+                    </div>
+                    <p className="mb-3 text-[11px] text-muted-foreground">
+                      Харилцагч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ бүртгэлээр ачаагаа хянах боломжтой.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="Нууц үг">
+                        <input
+                          type="password"
+                          value={accountPassword}
+                          onChange={(e) => { setAccountPassword(e.target.value); setAccountError(null); }}
+                          className="inp"
+                          placeholder="Хамгийн багадаа 6 тэмдэгт"
+                        />
+                      </Field>
+                    </div>
+                    {accountError && (
+                      <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {accountError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <Field label="Компани / Хүний нэр">
                   <input
                     value={form.name}

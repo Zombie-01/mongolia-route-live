@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore, type Driver } from "@/lib/store";
+import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/drivers")({
@@ -28,15 +29,19 @@ function emptyDriver(): Driver {
 const PAGE_SIZE = 10;
 
 function DriversPage() {
-  const { role, loading, drivers, addDriver, updateDriver, removeDriver } = useStore();
+  const { role, loading, drivers, addDriver, updateDriver, removeDriver, createUserAccount } = useStore();
   const nav = useNavigate();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Driver | null>(null);
   const [form, setForm] = useState<Driver>(emptyDriver());
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountCreated, setAccountCreated] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Infinite scroll observer
   useEffect(() => {
     if (!sentinelRef.current) return;
     const observer = new IntersectionObserver(
@@ -65,6 +70,10 @@ function DriversPage() {
   const openNew = () => {
     setEditing(null);
     setForm(emptyDriver());
+    setAccountEmail("");
+    setAccountPassword("");
+    setAccountError(null);
+    setAccountCreated(false);
     setFormOpen(true);
   };
 
@@ -74,13 +83,56 @@ function DriversPage() {
     setFormOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
     if (editing) {
       updateDriver(editing.id, form);
-    } else {
-      addDriver(form);
+      setFormOpen(false);
+      return;
     }
+
+    // New driver — create auth account first
+    if (!accountEmail.trim() || !accountPassword.trim()) {
+      setAccountError("И-мэйл болон нууц үг оруулна уу");
+      return;
+    }
+    if (accountPassword.length < 6) {
+      setAccountError("Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой");
+      return;
+    }
+
+    setCreatingAccount(true);
+    setAccountError(null);
+
+    const result = await createUserAccount({
+      email: accountEmail,
+      password: accountPassword,
+      role: "driver",
+      display_name: form.name,
+      phone: form.phone,
+    });
+
+    if (result.error) {
+      setCreatingAccount(false);
+      setAccountError(result.error);
+      return;
+    }
+
+    // Auth account created — now save driver record with user_id
+    const driverWithUser = { ...form };
+    addDriver(driverWithUser);
+
+    // Also update the driver row with user_id and email in the DB
+    if (result.user_id) {
+      await supabase
+        .from("drivers")
+        .update({ user_id: result.user_id, email: accountEmail })
+        .eq("name", form.name)
+        .eq("phone", form.phone);
+    }
+
+    setCreatingAccount(false);
+    setAccountCreated(true);
     setFormOpen(false);
   };
 
@@ -153,7 +205,6 @@ function DriversPage() {
               </motion.div>
             ))}
 
-            {/* Infinite scroll sentinel */}
             <div ref={sentinelRef} />
 
             {hasMore && (
@@ -208,6 +259,43 @@ function DriversPage() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                {/* Auth account section — only for new drivers */}
+                {!editing && (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                      Нэвтрэх бүртгэл үүсгэх
+                    </div>
+                    <p className="mb-3 text-[11px] text-muted-foreground">
+                      Жолооч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ бүртгэлээр жолооч өөрийн самбарт нэвтэрнэ.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="И-мэйл">
+                        <input
+                          type="email"
+                          value={accountEmail}
+                          onChange={(e) => { setAccountEmail(e.target.value); setAccountError(null); }}
+                          className="inp"
+                          placeholder="driver@company.mn"
+                        />
+                      </Field>
+                      <Field label="Нууц үг">
+                        <input
+                          type="password"
+                          value={accountPassword}
+                          onChange={(e) => { setAccountPassword(e.target.value); setAccountError(null); }}
+                          className="inp"
+                          placeholder="Хамгийн багадаа 6 тэмдэгт"
+                        />
+                      </Field>
+                    </div>
+                    {accountError && (
+                      <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {accountError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Нэр">
                     <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="inp" />
@@ -264,9 +352,10 @@ function DriversPage() {
                 </button>
                 <button
                   onClick={handleSave}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  disabled={creatingAccount}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
                 >
-                  {editing ? "Хадгалах" : "Нэмэх"}
+                  {creatingAccount ? "Бүртгэл үүсгэж байна..." : editing ? "Хадгалах" : "Нэмэх"}
                 </button>
               </div>
 
