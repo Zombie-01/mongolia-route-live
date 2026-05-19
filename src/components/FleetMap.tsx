@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, useMap, CircleMarker, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Polyline,
+  Marker,
+  useMap,
+  CircleMarker,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
 import { nearestOnRoute, type LatLng, type Shipment } from "@/lib/demo-data";
 import type { Station } from "@/lib/store";
@@ -46,6 +54,12 @@ function makeStopIcon(done: boolean) {
     iconAnchor: [8, 8],
     html: `<div style="width:16px;height:16px;border-radius:50%;border:2px solid ${done ? "#10b981" : "#3b82f6"};background:${done ? "rgba(16,185,129,.3)" : "rgba(59,130,246,.3)"};box-shadow:0 0 4px ${done ? "#10b981" : "#3b82f6"}"></div>`,
   });
+}
+
+function isValidLatLng(pos: LatLng | [number, number]): pos is LatLng {
+  return (
+    Array.isArray(pos) && pos.length === 2 && Number.isFinite(pos[0]) && Number.isFinite(pos[1])
+  );
 }
 
 function FitBounds({ shipments, focusId }: { shipments: Shipment[]; focusId?: string }) {
@@ -112,7 +126,13 @@ export function FleetMap({
       </div>
     );
   return (
-    <MapContainer center={center} zoom={6} className="h-full w-full" zoomControl={true} scrollWheelZoom>
+    <MapContainer
+      center={center}
+      zoom={6}
+      className="h-full w-full"
+      zoomControl={true}
+      scrollWheelZoom
+    >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -123,25 +143,28 @@ export function FleetMap({
           key={`r-${s.id}`}
           positions={s.roadRoute ?? s.route}
           pathOptions={{
-            color: s.status === "delayed" ? "#f59e0b" : s.status === "delivered" ? "#6366f1" : "#10b981",
+            color:
+              s.status === "delayed" ? "#f59e0b" : s.status === "delivered" ? "#6366f1" : "#10b981",
             weight: focusId === s.id ? 4 : 2.5,
             opacity: focusId && focusId !== s.id ? 0.25 : 0.85,
             dashArray: s.status === "delivered" ? "6 8" : undefined,
           }}
         />
       ))}
-      {stations.map((st) => (
-        <CircleMarker
-          key={`station-${st.id}`}
-          center={st.position}
-          radius={5}
-          fillColor="#8b5cf6"
-          color="#7c3aed"
-          weight={2}
-          opacity={0.8}
-          fillOpacity={0.4}
-        />
-      ))}
+      {stations
+        .filter((st) => isValidLatLng(st.position))
+        .map((st) => (
+          <CircleMarker
+            key={`station-${st.id}`}
+            center={st.position}
+            radius={5}
+            fillColor="#8b5cf6"
+            color="#7c3aed"
+            weight={2}
+            opacity={0.8}
+            fillOpacity={0.4}
+          />
+        ))}
       {shipments.map((s) =>
         s.dropoffs.map((d, i) => (
           <Marker

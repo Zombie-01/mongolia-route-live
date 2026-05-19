@@ -159,6 +159,13 @@ function dbToShipment(row: Record<string, unknown>, stops: Record<string, unknow
   };
 }
 
+function parseLatLng(lat: unknown, lng: unknown, fallback: LatLng = [47.9184, 106.9177]): LatLng {
+  const nlat = Number(lat);
+  const nlng = Number(lng);
+  if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return fallback;
+  return [nlat, nlng];
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role | null>(null);
   const [name, setName] = useState<string | null>(null);
@@ -237,7 +244,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: r.id as string,
           name: r.name as string,
           city: "",
-          position: [Number(r.latitude), Number(r.longitude)] as LatLng,
+          position: parseLatLng(r.latitude, r.longitude),
           type: "station",
           contact: "",
           active: true,
@@ -250,7 +257,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const persistField = useCallback(async (id: string, patch: Record<string, unknown>) => {
     try {
-      await supabase.from("shipments").update(patch as never).eq("id", id);
+      await supabase
+        .from("shipments")
+        .update(patch as never)
+        .eq("id", id);
     } catch {
       // ignore
     }
@@ -831,7 +841,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .select("id")
       .single()
       .then(({ data }) => {
-        if (data?.id) setDrivers((prev) => prev.map((x) => (x.id === d.id ? { ...x, id: data.id } : x)));
+        if (data?.id)
+          setDrivers((prev) => prev.map((x) => (x.id === d.id ? { ...x, id: data.id } : x)));
       });
   };
 
@@ -850,12 +861,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
     if (patch.trailerPlates !== undefined) row.trailer_plates = patch.trailerPlates;
-    supabase.from("drivers").update(row as never).eq("id", id).then(() => {});
+    supabase
+      .from("drivers")
+      .update(row as never)
+      .eq("id", id)
+      .then(() => {});
   };
 
   const removeDriver = (id: string) => {
     setDrivers((prev) => prev.filter((d) => d.id !== id));
-    supabase.from("drivers").delete().eq("id", id).then(() => {});
+    supabase
+      .from("drivers")
+      .delete()
+      .eq("id", id)
+      .then(() => {});
   };
 
   // ---------------- Station CRUD ----------------
@@ -871,7 +890,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .select("id")
       .single()
       .then(({ data }) => {
-        if (data?.id) setStations((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
+        if (data?.id)
+          setStations((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
       });
   };
 
@@ -883,12 +903,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       row.latitude = patch.position[0];
       row.longitude = patch.position[1];
     }
-    supabase.from("stations").update(row as never).eq("id", id).then(() => {});
+    supabase
+      .from("stations")
+      .update(row as never)
+      .eq("id", id)
+      .then(() => {});
   };
 
   const removeStation = (id: string) => {
     setStations((prev) => prev.filter((s) => s.id !== id));
-    supabase.from("stations").delete().eq("id", id).then(() => {});
+    supabase
+      .from("stations")
+      .delete()
+      .eq("id", id)
+      .then(() => {});
   };
 
   return (

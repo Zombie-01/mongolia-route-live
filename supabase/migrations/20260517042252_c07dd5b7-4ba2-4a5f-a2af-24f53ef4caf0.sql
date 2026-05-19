@@ -42,6 +42,9 @@ as $$
   )
 $$;
 
+grant execute on function public.has_role(uuid, public.app_role)
+  to anon, authenticated, service_role;
+
 create policy "roles_select_own" on public.user_roles
   for select to authenticated using (user_id = auth.uid());
 create policy "roles_admin_all" on public.user_roles
