@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useStore } from "@/lib/store";
+import { useStore, type Station } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/customers")({
@@ -17,6 +17,7 @@ interface Customer {
   phone?: string | null;
   email?: string | null;
   address?: string | null;
+  station_id?: string | null;
   created_at?: string;
 }
 
@@ -25,7 +26,7 @@ const PAGE_SIZE = 10;
 function CustomersPage() {
   const nav = useNavigate();
   const queryClient = useQueryClient();
-  const { role, loading, createUserAccount } = useStore();
+  const { role, loading, createUserAccount, stations } = useStore();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [form, setForm] = useState<Customer>({ id: "", name: "" });
@@ -90,6 +91,7 @@ function CustomersPage() {
             phone: c.phone || null,
             email: c.email,
             address: c.address || null,
+            station_id: c.station_id || null,
             user_id: result.user_id ?? null,
           },
         ]);
@@ -197,6 +199,9 @@ function CustomersPage() {
                         <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
                           {c.phone && <span>Утас: {c.phone}</span>}
                           {c.email && <span>Email: {c.email}</span>}
+                          {c.station_id && (
+                            <span>Өртөө: {stations.find((s) => s.id === c.station_id)?.name || "?"}</span>
+                          )}
                           {c.address && <span>Байршил: {c.address}</span>}
                         </div>
                       </div>
@@ -260,7 +265,7 @@ function CustomersPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 12 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass flex w-full max-w-lg flex-col overflow-hidden rounded-2xl"
+              className="glass flex w-full max-h-[90vh] max-w-lg flex-col overflow-hidden rounded-2xl"
             >
               <div className="border-b border-border p-5">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
@@ -323,12 +328,26 @@ function CustomersPage() {
                     placeholder="example@company.mn"
                   />
                 </Field>
+                <Field label="Өртөө">
+                  <select
+                    value={form.station_id || ""}
+                    onChange={(e) => setForm({ ...form, station_id: e.target.value || null })}
+                    className="inp"
+                  >
+                    <option value="">-- Өртөө сонгох --</option>
+                    {stations.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <Field label="Хаяг">
                   <textarea
                     value={form.address || ""}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
                     className="inp resize-none"
-                    rows={3}
+                    rows={2}
                     placeholder="Компаны хаяг"
                   />
                 </Field>
