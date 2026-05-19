@@ -831,7 +831,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       row.latitude = patch.position[0];
       row.longitude = patch.position[1];
     }
-    supabase.from("stations").update(row).eq("id", id).then(() => {});
+    supabase.from("stations").update(row as never).eq("id", id).then(() => {});
   };
 
   const removeStation = (id: string) => {
