@@ -128,7 +128,7 @@ Deno.serve(async (req: Request) => {
       .insert({ id: userId, display_name: body.display_name, phone: body.phone ?? null });
 
     if (profileError) {
-      console.warn("Profile insert failed:", profileError.message);
+      // Profile creation is non-critical; user can still log in
     }
 
     return new Response(JSON.stringify({

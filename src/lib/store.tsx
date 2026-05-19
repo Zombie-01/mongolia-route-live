@@ -348,8 +348,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }),
         );
       },
-      (err) => {
-        console.warn("[GPS] geolocation error:", err.message);
+      () => {
         // GPS failed — mark offline
         setShipments((prev) =>
           prev.map((s) => {
