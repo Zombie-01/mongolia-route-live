@@ -34,7 +34,8 @@ function emptyDriver(): Driver {
 const PAGE_SIZE = 10;
 
 function DriversPage() {
-  const { role, loading, drivers, addDriver, updateDriver, removeDriver, createUserAccount } = useStore();
+  const { role, loading, drivers, addDriver, updateDriver, removeDriver, createUserAccount } =
+    useStore();
   const nav = useNavigate();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Driver | null>(null);
@@ -44,6 +45,7 @@ function DriversPage() {
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountCreated, setAccountCreated] = useState(false);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -90,8 +92,34 @@ function DriversPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
+    // If editing, optionally upload new passport image then update
     if (editing) {
-      updateDriver(editing.id, form);
+      let passportUrl = form.passportImage;
+      if (passportFile) {
+        const ext = passportFile.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        const path = `driver-passports/${fileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("driver-passports")
+          .upload(path, passportFile, { upsert: true });
+        if (uploadError) {
+          setAccountError("Зураг байрлуулахад алдаа: " + uploadError.message);
+          return;
+        }
+        const { data: urlData } = await supabase.storage
+          .from("driver-passports")
+          .getPublicUrl(path);
+        passportUrl = urlData.publicUrl;
+      }
+
+      const updated = { ...form, passportImage: passportUrl };
+      updateDriver(editing.id, updated);
+      if (passportFile) {
+        await supabase
+          .from("drivers")
+          .update({ passport_photo_url: passportUrl })
+          .eq("id", editing.id);
+      }
       setFormOpen(false);
       return;
     }
@@ -125,13 +153,33 @@ function DriversPage() {
 
     // Auth account created — now save driver record with user_id
     const driverWithUser = { ...form };
+    // if user selected a passport file, upload it and attach URL
+    let passportUrl: string | undefined = form.passportImage;
+    if (passportFile) {
+      const ext = passportFile.name.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+      const path = `driver-passports/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("driver-passports")
+        .upload(path, passportFile, { upsert: true });
+      if (uploadError) {
+        setCreatingAccount(false);
+        setAccountError("Зураг байрлуулахад алдаа: " + uploadError.message);
+        return;
+      }
+      const { data: urlData } = await supabase.storage.from("driver-passports").getPublicUrl(path);
+      passportUrl = urlData.publicUrl;
+      driverWithUser.passportImage = passportUrl;
+    }
     addDriver(driverWithUser);
 
     // Also update the driver row with user_id and email in the DB
     if (result.user_id) {
+      const updatePayload: any = { user_id: result.user_id, email: accountEmail };
+      if (passportUrl) updatePayload.passport_photo_url = passportUrl;
       await supabase
         .from("drivers")
-        .update({ user_id: result.user_id, email: accountEmail })
+        .update(updatePayload)
         .eq("name", form.name)
         .eq("phone", form.phone);
     }
@@ -151,7 +199,9 @@ function DriversPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold">Жолооч нар</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Жолооч, бригадын мэдээлэл удирдлага</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Жолооч, бригадын мэдээлэл удирдлага
+              </p>
             </div>
             <button
               onClick={openNew}
@@ -163,11 +213,7 @@ function DriversPage() {
 
           <div className="mt-6 space-y-3">
             {visibleDrivers.map((d) => (
-              <motion.div
-                key={d.id}
-                layout
-                className="glass rounded-xl p-4"
-              >
+              <motion.div key={d.id} layout className="glass rounded-xl p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -263,7 +309,9 @@ function DriversPage() {
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   {editing ? "Жолооч засах" : "Шинэ жолооч"}
                 </div>
-                <h3 className="mt-1 truncate text-lg font-semibold">{form.name || "Шинэ жолооч"}</h3>
+                <h3 className="mt-1 truncate text-lg font-semibold">
+                  {form.name || "Шинэ жолооч"}
+                </h3>
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
@@ -274,14 +322,18 @@ function DriversPage() {
                       Нэвтрэх бүртгэл үүсгэх
                     </div>
                     <p className="mb-3 text-[11px] text-muted-foreground">
-                      Жолооч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ бүртгэлээр жолооч өөрийн самбарт нэвтэрнэ.
+                      Жолооч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ бүртгэлээр
+                      жолооч өөрийн самбарт нэвтэрнэ.
                     </p>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
                       <Field label="И-мэйл">
                         <input
                           type="email"
                           value={accountEmail}
-                          onChange={(e) => { setAccountEmail(e.target.value); setAccountError(null); }}
+                          onChange={(e) => {
+                            setAccountEmail(e.target.value);
+                            setAccountError(null);
+                          }}
                           className="inp"
                           placeholder="driver@company.mn"
                         />
@@ -290,7 +342,10 @@ function DriversPage() {
                         <input
                           type="password"
                           value={accountPassword}
-                          onChange={(e) => { setAccountPassword(e.target.value); setAccountError(null); }}
+                          onChange={(e) => {
+                            setAccountPassword(e.target.value);
+                            setAccountError(null);
+                          }}
                           className="inp"
                           placeholder="Хамгийн багадаа 6 тэмдэгт"
                         />
@@ -306,50 +361,143 @@ function DriversPage() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Нэр">
-                    <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="inp" />
+                    <input
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Үндсэн утас">
-                    <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="inp" />
+                    <input
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Монгол утас">
-                    <input value={form.mongoliaPhone || ""} onChange={(e) => setForm({ ...form, mongoliaPhone: e.target.value })} className="inp" placeholder="+976 ..." />
+                    <input
+                      value={form.mongoliaPhone || ""}
+                      onChange={(e) => setForm({ ...form, mongoliaPhone: e.target.value })}
+                      className="inp"
+                      placeholder="+976 ..."
+                    />
                   </Field>
                   <Field label="Орос утас">
-                    <input value={form.russiaPhone || ""} onChange={(e) => setForm({ ...form, russiaPhone: e.target.value })} className="inp" placeholder="+7 ..." />
+                    <input
+                      value={form.russiaPhone || ""}
+                      onChange={(e) => setForm({ ...form, russiaPhone: e.target.value })}
+                      className="inp"
+                      placeholder="+7 ..."
+                    />
                   </Field>
                   <Field label="Үнэмлэх">
-                    <input value={form.license} onChange={(e) => setForm({ ...form, license: e.target.value })} className="inp" />
+                    <input
+                      value={form.license}
+                      onChange={(e) => setForm({ ...form, license: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Туршлага (жил)">
-                    <input type="number" min={0} value={form.experience} onChange={(e) => setForm({ ...form, experience: Number(e.target.value) })} className="inp" />
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.experience}
+                      onChange={(e) => setForm({ ...form, experience: Number(e.target.value) })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Үнэлгээ (0-5)">
-                    <input type="number" min={0} max={5} step={0.1} value={form.rating} onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })} className="inp" />
+                    <input
+                      type="number"
+                      min={0}
+                      max={5}
+                      step={0.1}
+                      value={form.rating}
+                      onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Улсын дугаар">
-                    <input value={form.plateNumber} onChange={(e) => setForm({ ...form, plateNumber: e.target.value })} className="inp" />
+                    <input
+                      value={form.plateNumber}
+                      onChange={(e) => setForm({ ...form, plateNumber: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Машин ID">
-                    <input value={form.vehicleId} onChange={(e) => setForm({ ...form, vehicleId: e.target.value })} className="inp" />
+                    <input
+                      value={form.vehicleId}
+                      onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Даац">
-                    <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="inp" />
+                    <input
+                      value={form.capacity}
+                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                      className="inp"
+                    />
                   </Field>
                   <Field label="Гадаад паспортын зураг">
-                    <input value={form.passportImage || ""} onChange={(e) => setForm({ ...form, passportImage: e.target.value })} className="inp" placeholder="URL эсвэл file..." />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setPassportFile(f);
+                        // clear any existing URL in the form until upload completes
+                        if (f) setForm({ ...form, passportImage: "" });
+                      }}
+                      className="inp"
+                    />
+                    {form.passportImage && !passportFile && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Суулгасан зураг:{" "}
+                        <a
+                          href={form.passportImage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary"
+                        >
+                          харах
+                        </a>
+                      </div>
+                    )}
+                    {passportFile && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Файл сонгогдсоно: {passportFile.name}
+                      </div>
+                    )}
                   </Field>
                   <Field label="Дансны дугаар">
-                    <input value={form.accountNumber || ""} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} className="inp" placeholder="12345678" />
+                    <input
+                      value={form.accountNumber || ""}
+                      onChange={(e) => setForm({ ...form, accountNumber: e.target.value })}
+                      className="inp"
+                      placeholder="12345678"
+                    />
                   </Field>
                   <Field label="Улс">
-                    <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })} className="inp">
+                    <select
+                      value={form.country}
+                      onChange={(e) =>
+                        setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })
+                      }
+                      className="inp"
+                    >
                       <option value="MN">🇲🇳 Монгол</option>
                       <option value="RU">🇷🇺 ОХУ</option>
                       <option value="CN">🇨🇳 БНХАУ</option>
                     </select>
                   </Field>
                   <Field label="Төрөл">
-                    <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "truck" | "wagon" })} className="inp">
+                    <select
+                      value={form.type}
+                      onChange={(e) =>
+                        setForm({ ...form, type: e.target.value as "truck" | "wagon" })
+                      }
+                      className="inp"
+                    >
                       <option value="truck">🚚 Машин</option>
                       <option value="wagon">🚆 Вагон</option>
                     </select>
@@ -359,10 +507,14 @@ function DriversPage() {
                 {/* Trailer plates */}
                 <div className="rounded-xl border border-border bg-card/40 p-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Чиргүүлийн дугаар</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Чиргүүлийн дугаар
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setForm({ ...form, trailerPlates: [...form.trailerPlates, ""] })}
+                      onClick={() =>
+                        setForm({ ...form, trailerPlates: [...form.trailerPlates, ""] })
+                      }
                       className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 text-[10px] text-primary hover:bg-primary/25"
                     >
                       + Чиргүүл нэмэх
@@ -374,7 +526,9 @@ function DriversPage() {
                     <div className="space-y-2">
                       {form.trailerPlates.map((tp, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <span className="shrink-0 text-[10px] text-muted-foreground">#{i + 1}</span>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">
+                            #{i + 1}
+                          </span>
                           <input
                             value={tp}
                             onChange={(e) => {
@@ -412,7 +566,10 @@ function DriversPage() {
               </div>
 
               <div className="flex items-center justify-end gap-2 border-t border-border p-3 sm:p-4">
-                <button onClick={() => setFormOpen(false)} className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4">
+                <button
+                  onClick={() => setFormOpen(false)}
+                  className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4"
+                >
                   Болих
                 </button>
                 <button
