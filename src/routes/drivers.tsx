@@ -24,6 +24,10 @@ function emptyDriver(): Driver {
     country: "MN",
     active: true,
     trailerPlates: [],
+    passportImage: "",
+    accountNumber: "",
+    mongoliaPhone: "",
+    russiaPhone: "",
   };
 }
 
@@ -304,8 +308,14 @@ function DriversPage() {
                   <Field label="Нэр">
                     <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="inp" />
                   </Field>
-                  <Field label="Утас">
+                  <Field label="Үндсэн утас">
                     <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="inp" />
+                  </Field>
+                  <Field label="Монгол утас">
+                    <input value={form.mongoliaPhone || ""} onChange={(e) => setForm({ ...form, mongoliaPhone: e.target.value })} className="inp" placeholder="+976 ..." />
+                  </Field>
+                  <Field label="Орос утас">
+                    <input value={form.russiaPhone || ""} onChange={(e) => setForm({ ...form, russiaPhone: e.target.value })} className="inp" placeholder="+7 ..." />
                   </Field>
                   <Field label="Үнэмлэх">
                     <input value={form.license} onChange={(e) => setForm({ ...form, license: e.target.value })} className="inp" />
@@ -325,11 +335,23 @@ function DriversPage() {
                   <Field label="Даац">
                     <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="inp" />
                   </Field>
+                  <Field label="Гадаад паспортын зураг">
+                    <input value={form.passportImage || ""} onChange={(e) => setForm({ ...form, passportImage: e.target.value })} className="inp" placeholder="URL эсвэл file..." />
+                  </Field>
+                  <Field label="Дансны дугаар">
+                    <input value={form.accountNumber || ""} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} className="inp" placeholder="12345678" />
+                  </Field>
                   <Field label="Улс">
                     <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })} className="inp">
                       <option value="MN">🇲🇳 Монгол</option>
                       <option value="RU">🇷🇺 ОХУ</option>
                       <option value="CN">🇨🇳 БНХАУ</option>
+                    </select>
+                  </Field>
+                  <Field label="Төрөл">
+                    <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "truck" | "wagon" })} className="inp">
+                      <option value="truck">🚚 Машин</option>
+                      <option value="wagon">🚆 Вагон</option>
                     </select>
                   </Field>
                 </div>
