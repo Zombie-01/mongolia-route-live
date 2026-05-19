@@ -235,7 +235,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     const lastStop = form.dropoffs[form.dropoffs.length - 1];
     const newDropoff: Dropoff = {
       location: "",
-      position: lastStop?.position ?? destCity?.position ?? [47.9184, 106.9177],
+      position: lastStop?.position ?? destStation?.position ?? [47.9184, 106.9177],
       items: [],
       eta: "",
       status: "pending",
