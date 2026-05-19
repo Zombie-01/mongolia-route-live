@@ -46,18 +46,20 @@ ALTER TABLE public.drivers ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX IF NOT EXISTS drivers_active_idx ON public.drivers(active);
 
+DROP POLICY IF EXISTS "drivers_select_all" ON public.drivers;
 CREATE POLICY "drivers_select_all"
   ON public.drivers
   FOR SELECT
   TO authenticated
   USING (true);
-
+DROP POLICY IF EXISTS "drivers_admin_insert" ON public.drivers;
 CREATE POLICY "drivers_admin_insert"
   ON public.drivers
   FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "drivers_admin_update" ON public.drivers;
 CREATE POLICY "drivers_admin_update"
   ON public.drivers
   FOR UPDATE
@@ -65,6 +67,7 @@ CREATE POLICY "drivers_admin_update"
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "drivers_admin_delete" ON public.drivers;
 CREATE POLICY "drivers_admin_delete"
   ON public.drivers
   FOR DELETE

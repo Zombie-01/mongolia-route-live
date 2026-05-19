@@ -31,18 +31,20 @@ CREATE TABLE IF NOT EXISTS public.stations (
 
 ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "stations_select_all" ON public.stations;
 CREATE POLICY "stations_select_all"
   ON public.stations
   FOR SELECT
   TO authenticated
   USING (true);
-
+DROP POLICY IF EXISTS "stations_admin_insert" ON public.stations;
 CREATE POLICY "stations_admin_insert"
   ON public.stations
   FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "stations_admin_update" ON public.stations;
 CREATE POLICY "stations_admin_update"
   ON public.stations
   FOR UPDATE
@@ -50,6 +52,7 @@ CREATE POLICY "stations_admin_update"
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "stations_admin_delete" ON public.stations;
 CREATE POLICY "stations_admin_delete"
   ON public.stations
   FOR DELETE

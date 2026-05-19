@@ -15,6 +15,17 @@ VALUES
   ('Айлчин Логистик', '88013456789', 'contact@ailchin.mn', 'Айлчин Логистик ХХК', 'Улаанбаатар, Сүхэ батор өргөн чөлөө')
 ON CONFLICT DO NOTHING;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'stations' AND column_name = 'latitude'
+  ) THEN
+    ALTER TABLE public.stations ADD COLUMN latitude numeric;
+    ALTER TABLE public.stations ADD COLUMN longitude numeric;
+  END IF;
+END $$;
+
 -- Insert demo stations
 INSERT INTO public.stations (name, latitude, longitude)
 VALUES

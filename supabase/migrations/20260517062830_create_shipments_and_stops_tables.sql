@@ -124,18 +124,22 @@ ALTER TABLE public.stops ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS stops_shipment_id_idx ON public.stops(shipment_id);
 
 -- RLS policies for shipments
+-- RLS policies for shipments
+DROP POLICY IF EXISTS "shipments_select_all" ON public.shipments;
 CREATE POLICY "shipments_select_all"
   ON public.shipments
   FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "shipments_admin_insert" ON public.shipments;
 CREATE POLICY "shipments_admin_insert"
   ON public.shipments
   FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "shipments_admin_update" ON public.shipments;
 CREATE POLICY "shipments_admin_update"
   ON public.shipments
   FOR UPDATE
@@ -143,6 +147,7 @@ CREATE POLICY "shipments_admin_update"
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "shipments_admin_delete" ON public.shipments;
 CREATE POLICY "shipments_admin_delete"
   ON public.shipments
   FOR DELETE
@@ -150,18 +155,21 @@ CREATE POLICY "shipments_admin_delete"
   USING (public.has_role(auth.uid(), 'admin'));
 
 -- RLS policies for stops
+DROP POLICY IF EXISTS "stops_select_all" ON public.stops;
 CREATE POLICY "stops_select_all"
   ON public.stops
   FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "stops_admin_insert" ON public.stops;
 CREATE POLICY "stops_admin_insert"
   ON public.stops
   FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "stops_admin_update" ON public.stops;
 CREATE POLICY "stops_admin_update"
   ON public.stops
   FOR UPDATE
@@ -169,6 +177,7 @@ CREATE POLICY "stops_admin_update"
   USING (public.has_role(auth.uid(), 'admin'))
   WITH CHECK (public.has_role(auth.uid(), 'admin'));
 
+DROP POLICY IF EXISTS "stops_admin_delete" ON public.stops;
 CREATE POLICY "stops_admin_delete"
   ON public.stops
   FOR DELETE

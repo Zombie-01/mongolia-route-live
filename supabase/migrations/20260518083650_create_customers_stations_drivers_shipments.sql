@@ -47,23 +47,28 @@ CREATE TABLE IF NOT EXISTS public.customers (
 );
 
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "customers_select_all" ON public.customers;
 CREATE POLICY "customers_select_all"
   ON public.customers FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "customers_insert_admin" ON public.customers;
 CREATE POLICY "customers_insert_admin"
   ON public.customers FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "customers_update_admin" ON public.customers;
 CREATE POLICY "customers_update_admin"
   ON public.customers FOR UPDATE
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "customers_delete_admin" ON public.customers;
 CREATE POLICY "customers_delete_admin"
   ON public.customers FOR DELETE
   TO authenticated
@@ -82,23 +87,28 @@ CREATE TABLE IF NOT EXISTS public.stations (
 );
 
 ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "stations_select_all" ON public.stations;
 CREATE POLICY "stations_select_all"
   ON public.stations FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "stations_insert_admin" ON public.stations;
 CREATE POLICY "stations_insert_admin"
   ON public.stations FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "stations_update_admin" ON public.stations;
 CREATE POLICY "stations_update_admin"
   ON public.stations FOR UPDATE
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "stations_delete_admin" ON public.stations;
 CREATE POLICY "stations_delete_admin"
   ON public.stations FOR DELETE
   TO authenticated
@@ -118,24 +128,39 @@ CREATE TABLE IF NOT EXISTS public.drivers (
   updated_at timestamptz DEFAULT now()
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'drivers' AND column_name = 'user_id'
+  ) THEN
+    ALTER TABLE public.drivers ADD COLUMN user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+ALTER TABLE public.drivers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drivers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "drivers_select_all" ON public.drivers;
 CREATE POLICY "drivers_select_all"
   ON public.drivers FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "drivers_insert_admin" ON public.drivers;
 CREATE POLICY "drivers_insert_admin"
   ON public.drivers FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "drivers_update_admin" ON public.drivers;
 CREATE POLICY "drivers_update_admin"
   ON public.drivers FOR UPDATE
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "drivers_delete_admin" ON public.drivers;
 CREATE POLICY "drivers_delete_admin"
   ON public.drivers FOR DELETE
   TO authenticated
@@ -157,27 +182,58 @@ CREATE TABLE IF NOT EXISTS public.shipments (
 );
 
 ALTER TABLE public.shipments ENABLE ROW LEVEL SECURITY;
-
+DROP POLICY IF EXISTS "shipments_select_authenticated" ON public.shipments;
 CREATE POLICY "shipments_select_authenticated"
   ON public.shipments FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "shipments_insert_admin" ON public.shipments;
 CREATE POLICY "shipments_insert_admin"
   ON public.shipments FOR INSERT
   TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "shipments_update_admin" ON public.shipments;
 CREATE POLICY "shipments_update_admin"
   ON public.shipments FOR UPDATE
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+DROP POLICY IF EXISTS "shipments_delete_admin" ON public.shipments;
 CREATE POLICY "shipments_delete_admin"
   ON public.shipments FOR DELETE
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::app_role));
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'shipments' AND column_name = 'shipper_id'
+  ) THEN
+    ALTER TABLE public.shipments ADD COLUMN shipper_id uuid REFERENCES public.customers(id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'shipments' AND column_name = 'receiver_id'
+  ) THEN
+    ALTER TABLE public.shipments ADD COLUMN receiver_id uuid REFERENCES public.customers(id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'shipments' AND column_name = 'pickup_station_id'
+  ) THEN
+    ALTER TABLE public.shipments ADD COLUMN pickup_station_id uuid REFERENCES public.stations(id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'shipments' AND column_name = 'delivery_station_id'
+  ) THEN
+    ALTER TABLE public.shipments ADD COLUMN delivery_station_id uuid REFERENCES public.stations(id);
+  END IF;
+END $$;
 
 -- -----------------------------------------------------------------------
 -- Create stops table
@@ -214,6 +270,16 @@ CREATE POLICY "stops_delete_admin"
   ON public.stops FOR DELETE
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::app_role));
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'stops' AND column_name = 'station_id'
+  ) THEN
+    ALTER TABLE public.stops ADD COLUMN station_id uuid REFERENCES public.stations(id);
+  END IF;
+END $$;
 
 -- -----------------------------------------------------------------------
 -- Create indexes for performance

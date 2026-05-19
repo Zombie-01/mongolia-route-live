@@ -1,4 +1,4 @@
-CREATE TABLE public.customers (
+CREATE TABLE IF NOT EXISTS public.customers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   phone text,
@@ -9,8 +9,25 @@ CREATE TABLE public.customers (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'created_by'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN created_by uuid;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'company'
+  ) THEN
+    ALTER TABLE public.customers ADD COLUMN company text;
+  END IF;
+END $$;
+
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "customers_select_all" ON public.customers;
 CREATE POLICY "customers_select_all" ON public.customers
   FOR SELECT TO authenticated USING (true);
 
