@@ -798,7 +798,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (patch.type !== undefined) row.type = patch.type;
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
-    supabase.from("drivers").update(row).eq("id", id).then(() => {});
+    supabase.from("drivers").update(row as never).eq("id", id).then(() => {});
   };
 
   const removeDriver = (id: string) => {
