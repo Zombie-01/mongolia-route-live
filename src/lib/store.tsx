@@ -35,6 +35,7 @@ export interface Driver {
   type: "truck" | "wagon";
   country: "MN" | "RU" | "CN";
   active: boolean;
+  trailerPlates: string[];
 }
 
 export interface Station {
@@ -219,6 +220,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           type: (r.type as "truck" | "wagon") ?? "truck",
           country: (r.country as "MN" | "RU" | "CN") ?? "MN",
           active: (r.active as boolean) ?? true,
+          trailerPlates: (r.trailer_plates as string[] | null) ?? [],
         })),
       );
     } catch {
@@ -825,6 +827,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         type: d.type,
         country: d.country,
         active: d.active,
+        trailer_plates: d.trailerPlates,
       })
       .select("id")
       .single()
@@ -847,6 +850,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (patch.type !== undefined) row.type = patch.type;
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
+    if (patch.trailerPlates !== undefined) row.trailer_plates = patch.trailerPlates;
     supabase.from("drivers").update(row as never).eq("id", id).then(() => {});
   };
 

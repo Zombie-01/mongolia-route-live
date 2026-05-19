@@ -23,6 +23,7 @@ function emptyDriver(): Driver {
     type: "truck",
     country: "MN",
     active: true,
+    trailerPlates: [],
   };
 }
 
@@ -183,6 +184,9 @@ function DriversPage() {
                       <span>Даац: {d.capacity}</span>
                       <span>Үнэлгээ: ⭐ {d.rating.toFixed(1)}</span>
                       <span>Машин: {d.vehicleId}</span>
+                      {d.trailerPlates.length > 0 && (
+                        <span className="col-span-2">Чиргүүл: {d.trailerPlates.join(", ")}</span>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -321,12 +325,6 @@ function DriversPage() {
                   <Field label="Даац">
                     <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="inp" />
                   </Field>
-                  <Field label="Тээврийн төрөл">
-                    <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "truck" | "wagon" })} className="inp">
-                      <option value="truck">🚚 Машин</option>
-                      <option value="wagon">🚆 Вагон</option>
-                    </select>
-                  </Field>
                   <Field label="Улс">
                     <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })} className="inp">
                       <option value="MN">🇲🇳 Монгол</option>
@@ -334,6 +332,51 @@ function DriversPage() {
                       <option value="CN">🇨🇳 БНХАУ</option>
                     </select>
                   </Field>
+                </div>
+
+                {/* Trailer plates */}
+                <div className="rounded-xl border border-border bg-card/40 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Чиргүүлийн дугаар</div>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, trailerPlates: [...form.trailerPlates, ""] })}
+                      className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 text-[10px] text-primary hover:bg-primary/25"
+                    >
+                      + Чиргүүл нэмэх
+                    </button>
+                  </div>
+                  {form.trailerPlates.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Чиргүүл бүртгэгдээгүй байна</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {form.trailerPlates.map((tp, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="shrink-0 text-[10px] text-muted-foreground">#{i + 1}</span>
+                          <input
+                            value={tp}
+                            onChange={(e) => {
+                              const next = [...form.trailerPlates];
+                              next[i] = e.target.value;
+                              setForm({ ...form, trailerPlates: next });
+                            }}
+                            className="inp"
+                            placeholder="УБ-1234"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = form.trailerPlates.filter((_, idx) => idx !== i);
+                              setForm({ ...form, trailerPlates: next });
+                            }}
+                            className="shrink-0 rounded border border-destructive/40 bg-destructive/10 px-1.5 py-1 text-[10px] text-destructive hover:bg-destructive/20"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input

@@ -95,7 +95,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     const isWagon = form.type === "wagon";
 
     // Only show truck drivers for truck shipments
-    const activeTruckDrivers = drivers.filter((d) => d.active && d.type === "truck");
+    const activeTruckDrivers = drivers.filter((d) => d.active);
     const selectedDriver = drivers.find(
       (d) => d.name === form.driver && d.plateNumber === form.plateNumber,
     );
