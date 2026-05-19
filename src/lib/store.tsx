@@ -60,6 +60,8 @@ interface StoreState {
   loginWithEmail: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   authMode: "supabase" | "mock";
+  userId: string | null;
+  customerId: string | null;
   createUserAccount: (data: {
     email: string;
     password: string;
@@ -175,6 +177,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState<"supabase" | "mock">("supabase");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]); // Start with empty array, load from DB
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
   const [realGpsActive, setRealGpsActive] = useState<Set<string>>(new Set());
@@ -186,11 +190,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const loadShipmentsFromDb = useCallback(async () => {
     try {
-      const { data: rows, error: sErr } = await supabase
+      const baseQuery = supabase
         .from("shipments")
         .select("*")
         .order("created_at", { ascending: true });
-      if (sErr || !rows?.length) throw sErr ?? new Error("no rows");
+      if (role === "customer" && !customerId) {
+        setShipments([]);
+        setDbReady(false);
+        return;
+      }
+
+      const shipmentQuery =
+        role === "customer" && customerId
+          ? baseQuery.or(`shipper_id.eq.${customerId},receiver_id.eq.${customerId}`)
+          : baseQuery;
+
+      const { data: rows, error: sErr } = await shipmentQuery;
+      if (sErr) throw sErr;
 
       const { data: stops, error: stErr } = await supabase
         .from("stops")
@@ -205,13 +221,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         stopsByShipment.get(sid)!.push(st);
       }
 
-      const mapped = rows.map((r) => dbToShipment(r, stopsByShipment.get(r.id as string) ?? []));
+      const mapped = (rows ?? []).map((r) =>
+        dbToShipment(r, stopsByShipment.get(r.id as string) ?? []),
+      );
       setShipments(mapped);
       setDbReady(true);
     } catch {
       setDbReady(false);
     }
-  }, []);
+  }, [role, authMode, customerId, userId]);
 
   const loadDriversFromDb = useCallback(async () => {
     try {
@@ -236,6 +254,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
     } catch {
       // ignore
+    }
+  }, []);
+
+  const loadCustomerForUser = useCallback(async (uid: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (error) throw error;
+      setCustomerId(data?.id ?? null);
+    } catch {
+      setCustomerId(null);
     }
   }, []);
 
@@ -437,6 +469,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return;
 
     const resolveRole = async (userId: string, email: string | null) => {
+      setUserId(userId);
       try {
         const { data, error } = await supabase
           .from("user_roles")
@@ -446,11 +479,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const r = (data?.[0]?.role as Role | undefined) ?? "customer";
         setRole(r);
         setAuthMode("supabase");
+        if (r === "customer") {
+          await loadCustomerForUser(userId);
+        } else {
+          setCustomerId(null);
+        }
       } catch {
         const inferred = (Object.entries(DEMO_EMAILS).find(([, e]) => e === email)?.[0] ??
           "customer") as Role;
         setRole(inferred);
         setAuthMode("mock");
+        setCustomerId(null);
       }
       try {
         const { data: profile } = await supabase
@@ -484,6 +523,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           setLoading(false),
         );
       } else {
+        setUserId(null);
+        setCustomerId(null);
         setLoading(false);
       }
     });
@@ -494,11 +535,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ---------------- Load from DB on auth ----------------
   useEffect(() => {
     if (!role) return;
+    if (role === "customer" && authMode === "supabase" && userId && customerId === null) return;
     loadShipmentsFromDb();
     loadDriversFromDb();
     loadStationsFromDb();
-  }, [role, loadShipmentsFromDb, loadDriversFromDb, loadStationsFromDb]);
-
+  }, [
+    role,
+    authMode,
+    userId,
+    customerId,
+    loadShipmentsFromDb,
+    loadDriversFromDb,
+    loadStationsFromDb,
+  ]);
   // ---------------- Road geometry (background) ----------------
   useEffect(() => {
     let cancelled = false;
@@ -596,6 +645,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setRole(r);
         setName(DEMO_NAMES[r]);
         setAuthMode("mock");
+        setUserId(null);
+        setCustomerId(null);
         return {};
       }
       setAuthMode("supabase");
@@ -604,6 +655,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setRole(r);
       setName(DEMO_NAMES[r]);
       setAuthMode("mock");
+      setUserId(null);
+      setCustomerId(null);
       return {};
     }
   };
@@ -663,6 +716,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRealGpsActive(new Set());
     setRole(null);
     setName(null);
+    setUserId(null);
+    setCustomerId(null);
   };
 
   // ---------------- Shipment actions ----------------
@@ -934,6 +989,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         logout,
         authMode,
         createUserAccount,
+        userId,
+        customerId,
         shipments,
         setStatus,
         toggleSharing,
