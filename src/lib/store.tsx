@@ -227,7 +227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: r.id as string,
           name: r.name as string,
           city: "",
-          position: [parseFloat(r.latitude as string), parseFloat(r.longitude as string)] as LatLng,
+          position: [Number(r.latitude), Number(r.longitude)] as LatLng,
           type: "station",
           contact: "",
           active: true,
