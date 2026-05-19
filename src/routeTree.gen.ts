@@ -14,6 +14,7 @@ import { Route as StationsRouteImport } from './routes/stations'
 import { Route as DriversRouteImport } from './routes/drivers'
 import { Route as DriverRouteImport } from './routes/driver'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as IndexRouteImport } from './routes/index'
 
 const TrackRoute = TrackRouteImport.update({
@@ -41,6 +42,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/driver': typeof DriverRoute
   '/drivers': typeof DriversRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/driver': typeof DriverRoute
   '/drivers': typeof DriversRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/driver': typeof DriverRoute
   '/drivers': typeof DriversRoute
@@ -74,14 +83,37 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/driver' | '/drivers' | '/stations' | '/track'
+  fullPaths:
+    | '/'
+    | '/customers'
+    | '/dashboard'
+    | '/driver'
+    | '/drivers'
+    | '/stations'
+    | '/track'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/driver' | '/drivers' | '/stations' | '/track'
-  id: '__root__' | '/' | '/dashboard' | '/driver' | '/drivers' | '/stations' | '/track'
+  to:
+    | '/'
+    | '/customers'
+    | '/dashboard'
+    | '/driver'
+    | '/drivers'
+    | '/stations'
+    | '/track'
+  id:
+    | '__root__'
+    | '/'
+    | '/customers'
+    | '/dashboard'
+    | '/driver'
+    | '/drivers'
+    | '/stations'
+    | '/track'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
   DriverRoute: typeof DriverRoute
   DriversRoute: typeof DriversRoute
@@ -126,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -138,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
   DriverRoute: DriverRoute,
   DriversRoute: DriversRoute,
