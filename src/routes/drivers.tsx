@@ -24,6 +24,10 @@ function emptyDriver(): Driver {
     country: "MN",
     active: true,
     trailerPlates: [],
+    passportImage: "",
+    accountNumber: "",
+    mongoliaPhone: "",
+    russiaPhone: "",
   };
 }
 
@@ -246,23 +250,23 @@ function DriversPage() {
             exit={{ opacity: 0 }}
             onClick={() => setFormOpen(false)}
             style={{ zIndex: 10000 }}
-            className="fixed inset-0 grid place-items-center bg-background/70 p-4 backdrop-blur"
+            className="fixed inset-0 flex items-center justify-center bg-background/70 p-4 backdrop-blur"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              initial={{ opacity: 0, scale: 0.96, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              exit={{ opacity: 0, scale: 0.96, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass flex w-full max-w-lg flex-col overflow-hidden rounded-2xl"
+              className="glass flex w-full max-h-[90vh] max-w-lg flex-col overflow-hidden rounded-2xl"
             >
-              <div className="border-b border-border p-5">
+              <div className="border-b border-border p-4 sm:p-5">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   {editing ? "Жолооч засах" : "Шинэ жолооч"}
                 </div>
-                <h3 className="mt-1 text-lg font-semibold">{form.name || "Шинэ жолооч"}</h3>
+                <h3 className="mt-1 truncate text-lg font-semibold">{form.name || "Шинэ жолооч"}</h3>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto p-5">
+              <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
                 {/* Auth account section — only for new drivers */}
                 {!editing && (
                   <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
@@ -272,7 +276,7 @@ function DriversPage() {
                     <p className="mb-3 text-[11px] text-muted-foreground">
                       Жолооч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ бүртгэлээр жолооч өөрийн самбарт нэвтэрнэ.
                     </p>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
                       <Field label="И-мэйл">
                         <input
                           type="email"
@@ -300,12 +304,18 @@ function DriversPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Нэр">
                     <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="inp" />
                   </Field>
-                  <Field label="Утас">
+                  <Field label="Үндсэн утас">
                     <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="inp" />
+                  </Field>
+                  <Field label="Монгол утас">
+                    <input value={form.mongoliaPhone || ""} onChange={(e) => setForm({ ...form, mongoliaPhone: e.target.value })} className="inp" placeholder="+976 ..." />
+                  </Field>
+                  <Field label="Орос утас">
+                    <input value={form.russiaPhone || ""} onChange={(e) => setForm({ ...form, russiaPhone: e.target.value })} className="inp" placeholder="+7 ..." />
                   </Field>
                   <Field label="Үнэмлэх">
                     <input value={form.license} onChange={(e) => setForm({ ...form, license: e.target.value })} className="inp" />
@@ -325,11 +335,23 @@ function DriversPage() {
                   <Field label="Даац">
                     <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="inp" />
                   </Field>
+                  <Field label="Гадаад паспортын зураг">
+                    <input value={form.passportImage || ""} onChange={(e) => setForm({ ...form, passportImage: e.target.value })} className="inp" placeholder="URL эсвэл file..." />
+                  </Field>
+                  <Field label="Дансны дугаар">
+                    <input value={form.accountNumber || ""} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} className="inp" placeholder="12345678" />
+                  </Field>
                   <Field label="Улс">
                     <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })} className="inp">
                       <option value="MN">🇲🇳 Монгол</option>
                       <option value="RU">🇷🇺 ОХУ</option>
                       <option value="CN">🇨🇳 БНХАУ</option>
+                    </select>
+                  </Field>
+                  <Field label="Төрөл">
+                    <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as "truck" | "wagon" })} className="inp">
+                      <option value="truck">🚚 Машин</option>
+                      <option value="wagon">🚆 Вагон</option>
                     </select>
                   </Field>
                 </div>
@@ -389,14 +411,14 @@ function DriversPage() {
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-                <button onClick={() => setFormOpen(false)} className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm">
+              <div className="flex items-center justify-end gap-2 border-t border-border p-3 sm:p-4">
+                <button onClick={() => setFormOpen(false)} className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4">
                   Болих
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={creatingAccount}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 sm:px-4"
                 >
                   {creatingAccount ? "Бүртгэл үүсгэж байна..." : editing ? "Хадгалах" : "Нэмэх"}
                 </button>

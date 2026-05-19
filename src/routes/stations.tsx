@@ -186,25 +186,25 @@ function StationsPage() {
             exit={{ opacity: 0 }}
             onClick={() => setFormOpen(false)}
             style={{ zIndex: 10000 }}
-            className="fixed inset-0 grid place-items-center bg-background/70 p-4 backdrop-blur"
+            className="fixed inset-0 flex items-center justify-center bg-background/70 p-4 backdrop-blur"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              initial={{ opacity: 0, scale: 0.96, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              exit={{ opacity: 0, scale: 0.96, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl"
+              className="glass flex w-full max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-2xl"
             >
-              <div className="border-b border-border p-5">
+              <div className="border-b border-border p-4 sm:p-5">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   {editing ? "Өртөө засах" : "Шинэ өртөө"}
                 </div>
                 <h3 className="mt-1 text-lg font-semibold">{form.name || "Шинэ өртөө"}</h3>
               </div>
 
-              <div className="flex-1 space-y-4 overflow-y-auto p-5">
+              <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
                 {mapMode && (
-                  <div className="h-80 w-full overflow-hidden rounded-lg border border-border">
+                  <div className="h-60 w-full overflow-hidden rounded-lg border border-border sm:h-80">
                     <FleetMap
                       shipments={[]}
                       stations={stations}
@@ -213,39 +213,43 @@ function StationsPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Нэр">
-                    <input
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="inp"
-                      placeholder="Өртөөний нэр"
-                    />
-                  </Field>
-                  <button
-                    onClick={() => setMapMode(!mapMode)}
-                    className="self-end rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-xs text-primary hover:bg-primary/25"
-                  >
-                    {mapMode ? "✕ Харайн хаах" : "🗺 Карт сонгох"}
-                  </button>
-                  <Field label="Урт (lat)">
-                    <input
-                      type="number"
-                      step={0.0001}
-                      value={form.position[0]}
-                      onChange={(e) => setForm({ ...form, position: [Number(e.target.value), form.position[1]] })}
-                      className="inp tabular-nums"
-                    />
-                  </Field>
-                  <Field label="Өргөн (lng)">
-                    <input
-                      type="number"
-                      step={0.0001}
-                      value={form.position[1]}
-                      onChange={(e) => setForm({ ...form, position: [form.position[0], Number(e.target.value)] })}
-                      className="inp tabular-nums"
-                    />
-                  </Field>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="Нэр">
+                      <input
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className="inp"
+                        placeholder="Өртөөний нэр"
+                      />
+                    </Field>
+                    <button
+                      onClick={() => setMapMode(!mapMode)}
+                      className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-xs text-primary hover:bg-primary/25 sm:self-end"
+                    >
+                      {mapMode ? "✕ Харайн хаах" : "🗺 Карт сонгох"}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="Урт (lat)">
+                      <input
+                        type="number"
+                        step={0.0001}
+                        value={form.position[0]}
+                        onChange={(e) => setForm({ ...form, position: [Number(e.target.value), form.position[1]] })}
+                        className="inp tabular-nums"
+                      />
+                    </Field>
+                    <Field label="Өргөн (lng)">
+                      <input
+                        type="number"
+                        step={0.0001}
+                        value={form.position[1]}
+                        onChange={(e) => setForm({ ...form, position: [form.position[0], Number(e.target.value)] })}
+                        className="inp tabular-nums"
+                      />
+                    </Field>
+                  </div>
                 </div>
 
                 <label className="flex items-center gap-2 text-sm">
@@ -259,16 +263,16 @@ function StationsPage() {
                 </label>
               </div>
 
-              <div className="flex items-center justify-end gap-2 border-t border-border p-4">
+              <div className="flex items-center justify-end gap-2 border-t border-border p-3 sm:p-4">
                 <button
                   onClick={() => setFormOpen(false)}
-                  className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm"
+                  className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4"
                 >
                   Болих
                 </button>
                 <button
                   onClick={handleSave}
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 sm:px-4"
                 >
                   {editing ? "Хадгалах" : "Нэмэх"}
                 </button>

@@ -36,6 +36,10 @@ export interface Driver {
   country: "MN" | "RU" | "CN";
   active: boolean;
   trailerPlates: string[];
+  passportImage?: string;
+  accountNumber?: string;
+  mongoliaPhone?: string;
+  russiaPhone?: string;
 }
 
 export interface Station {

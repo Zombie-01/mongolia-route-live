@@ -127,6 +127,45 @@ function LoginPage() {
           </div>
         )}
 
+        {/* Quick fill seed accounts */}
+        <div className="mt-8">
+          <div className="mb-4 text-center text-xs uppercase tracking-widest text-muted-foreground">
+            Нэвтрэлтийн мэдээлэл нэг товчилго
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <button
+              onClick={() => {
+                setEmail("admin@demo.mn");
+                setPassword("demo1234");
+                setShowEmailLogin(true);
+              }}
+              className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+            >
+              Админ: admin@demo.mn
+            </button>
+            <button
+              onClick={() => {
+                setEmail("driver@demo.mn");
+                setPassword("demo1234");
+                setShowEmailLogin(true);
+              }}
+              className="rounded-lg border border-blue-300/30 bg-blue-500/5 px-3 py-2.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-500/10 dark:text-blue-400"
+            >
+              Жолооч: driver@demo.mn
+            </button>
+            <button
+              onClick={() => {
+                setEmail("customer@demo.mn");
+                setPassword("demo1234");
+                setShowEmailLogin(true);
+              }}
+              className="rounded-lg border border-accent/30 bg-accent/5 px-3 py-2.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10"
+            >
+              Харилцагч: customer@demo.mn
+            </button>
+          </div>
+        </div>
+
         {/* Email/Password login section */}
         <div className="mt-8">
           <button
