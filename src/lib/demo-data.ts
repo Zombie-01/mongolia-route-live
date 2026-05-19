@@ -27,8 +27,8 @@ export interface Shipment {
   driver: string;
   vehicleId: string;
   status: ShipmentStatus;
-  route: LatLng[];        // raw waypoints (used as fallback)
-  roadRoute?: LatLng[];   // detailed road geometry (filled from OSRM)
+  route: LatLng[]; // raw waypoints (used as fallback)
+  roadRoute?: LatLng[]; // detailed road geometry (filled from OSRM)
   progress: number;
   speed: number;
   eta: string;
@@ -39,7 +39,7 @@ export interface Shipment {
   // GPS state — when offline, freeze position; trucks resume from lastKnown on reconnect.
   // Wagons have type==="wagon" → always treated as "no GPS" (system estimates by time).
   gpsOnline?: boolean;
-  lastGpsAt?: string;     // ISO timestamp of last successful GPS
+  lastGpsAt?: string; // ISO timestamp of last successful GPS
   lastKnownPos?: LatLng;
   manualOverride?: boolean; // true if admin set position manually
 
@@ -47,15 +47,17 @@ export interface Shipment {
   driverPhone: string;
   driverLicense: string;
   driverExperience: string; // e.g. "8 жил"
-  driverRating: number;     // 0..5
+  driverRating: number; // 0..5
   plateNumber: string;
-  capacity: string;         // e.g. "25 тн"
+  capacity: string; // e.g. "25 тн"
 
   // Detailed cargo
   cargoItems: CargoItem[];
-  totalWeight: string;      // e.g. "20 тн"
+  totalWeight: string; // e.g. "20 тн"
   shipper: string;
   consignee: string;
+  shipperId?: string;
+  receiverId?: string;
   dropoffs: Dropoff[];
 }
 
@@ -86,6 +88,8 @@ export const initialShipments: Shipment[] = [
     capacity: "25 тн",
     shipper: "Тэжээл Трейд ХХК",
     consignee: "Дархан-Сэлэнгэ Малчдын Холбоо",
+    shipperId: "cust-001",
+    receiverId: "cust-002",
     totalWeight: "20 тн",
     cargoItems: [
       { name: "Овьёос", qty: 10 },
@@ -140,6 +144,8 @@ export const initialShipments: Shipment[] = [
     capacity: "20 тн",
     shipper: "Хангай Агро ХХК",
     consignee: "Эрдэнэт ХАА хоршоо",
+    shipperId: "cust-003",
+    receiverId: "cust-004",
     totalWeight: "18 тн",
     cargoItems: [
       { name: "Боолтлосон өвс", qty: 12, note: "350 боодол" },
@@ -181,6 +187,8 @@ export const initialShipments: Shipment[] = [
     capacity: "15 тн",
     shipper: "Эрдэс Мин ХХК",
     consignee: "Говьсүмбэр МАА",
+    shipperId: "cust-005",
+    receiverId: "cust-006",
     totalWeight: "12 тн",
     cargoItems: [
       { name: "Малын давс (block)", qty: 5, note: "500 ширхэг" },
@@ -201,7 +209,7 @@ export const initialShipments: Shipment[] = [
       },
       {
         location: "Чойр — Сум 3 нэгдэл",
-        position: [46.30, 108.40],
+        position: [46.3, 108.4],
         items: [
           { name: "Малын давс", qty: 2 },
           { name: "Эрдэс тэжээл", qty: 2 },
@@ -234,6 +242,8 @@ export const initialShipments: Shipment[] = [
     capacity: "30 тн",
     shipper: "Засгийн газрын нөөц",
     consignee: "Ховд аймгийн ЗДТГ",
+    shipperId: "cust-011",
+    receiverId: "cust-012",
     totalWeight: "28 тн",
     cargoItems: [
       { name: "Овьёос", qty: 10 },
@@ -288,6 +298,8 @@ export const initialShipments: Shipment[] = [
     capacity: "18 тн",
     shipper: "Тэжээл Трейд ХХК",
     consignee: "Дорноговь МАА",
+    shipperId: "cust-013",
+    receiverId: "cust-014",
     totalWeight: "15 тн",
     cargoItems: [
       { name: "Хорголжин тэжээл", qty: 10 },
@@ -331,6 +343,8 @@ export const initialShipments: Shipment[] = [
     capacity: "260 тн (4×65)",
     shipper: "Бурятзерно (Улаан-Үд)",
     consignee: "Тэжээл Трейд ХХК",
+    shipperId: "cust-015",
+    receiverId: "cust-013",
     totalWeight: "240 тн",
     cargoItems: [
       { name: "Овьёос (шуумалгүй)", qty: 160, note: "2 вагон" },
@@ -374,6 +388,8 @@ export const initialShipments: Shipment[] = [
     capacity: "195 тн",
     shipper: "Сибирь-Агро",
     consignee: "Эрдэнэт Хүнс ХХК",
+    shipperId: "cust-016",
+    receiverId: "cust-004",
     totalWeight: "180 тн",
     cargoItems: [
       { name: "Хивэг (улаан буудайн)", qty: 120, note: "2 вагон" },
@@ -402,7 +418,14 @@ export const initialShipments: Shipment[] = [
     driver: "Галт тэрэг бр. №07 — 王 Wang",
     vehicleId: "ВАГОН-5540",
     status: "in_transit",
-    route: route([43.6533, 111.9779], [43.7228, 111.8953], [44.5, 111.0], [45.5, 109.5], [47.0, 108.0], UB),
+    route: route(
+      [43.6533, 111.9779],
+      [43.7228, 111.8953],
+      [44.5, 111.0],
+      [45.5, 109.5],
+      [47.0, 108.0],
+      UB,
+    ),
     progress: 0.58,
     speed: 62,
     eta: "6ц 05м",
@@ -417,6 +440,8 @@ export const initialShipments: Shipment[] = [
     capacity: "325 тн",
     shipper: "Inner Mongolia Feed Group",
     consignee: "Тэжээл Трейд ХХК",
+    shipperId: "cust-017",
+    receiverId: "cust-013",
     totalWeight: "300 тн",
     cargoItems: [
       { name: "Хорголжин тэжээл (premium)", qty: 200, note: "3 вагон" },
@@ -427,9 +452,7 @@ export const initialShipments: Shipment[] = [
       {
         location: "Замын-Үүд — гаалийн агуулах",
         position: [43.7228, 111.8953],
-        items: [
-          { name: "Эрдэс/витамин premix", qty: 60 },
-        ],
+        items: [{ name: "Эрдэс/витамин premix", qty: 60 }],
         eta: "Гаалийн боловсруулалт",
         status: "done",
       },
@@ -454,7 +477,16 @@ export const initialShipments: Shipment[] = [
     driver: "Галт тэрэг бр. №31 — 李 Li",
     vehicleId: "ВАГОН-6677",
     status: "delayed",
-    route: route([39.3434, 117.3616], [42.0, 114.0], [43.7228, 111.8953], [45.5, 109.5], [47.0, 108.0], UB, [48.3, 106.85], [49.486, 105.962]),
+    route: route(
+      [39.3434, 117.3616],
+      [42.0, 114.0],
+      [43.7228, 111.8953],
+      [45.5, 109.5],
+      [47.0, 108.0],
+      UB,
+      [48.3, 106.85],
+      [49.486, 105.962],
+    ),
     progress: 0.41,
     speed: 38,
     eta: "22ц 10м",
@@ -469,6 +501,8 @@ export const initialShipments: Shipment[] = [
     capacity: "260 тн",
     shipper: "Tianjin Agro Export",
     consignee: "Дархан-Уул Тэжээл ХХК",
+    shipperId: "cust-018",
+    receiverId: "cust-002",
     totalWeight: "220 тн",
     cargoItems: [
       { name: "Шар буурцагны хүрз (soybean meal)", qty: 130, note: "2 вагон" },

@@ -37,6 +37,7 @@ export interface Driver {
   active: boolean;
   trailerPlates: string[];
   passportImage?: string;
+  profileImage?: string;
   accountNumber?: string;
   mongoliaPhone?: string;
   russiaPhone?: string;
@@ -86,6 +87,7 @@ interface StoreState {
   overridePosition: (id: string, pos: LatLng) => void;
   refreshRoadRoute: (id: string) => Promise<void>;
   markStopDone: (shipmentId: string, stopSeq: number) => void;
+  reloadShipments: () => Promise<void>;
 
   drivers: Driver[];
   addDriver: (d: Driver) => void;
@@ -161,6 +163,8 @@ function dbToShipment(row: Record<string, unknown>, stops: Record<string, unknow
     totalWeight: (row.total_weight as string) ?? "",
     shipper: (row.shipper as string) ?? "",
     consignee: (row.consignee as string) ?? "",
+    shipperId: (row.shipper_id as string) ?? undefined,
+    receiverId: (row.receiver_id as string) ?? undefined,
     dropoffs,
   };
 }
@@ -185,6 +189,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dbReady, setDbReady] = useState(false);
   const tickRef = useRef<number | null>(null);
   const gpsWatchers = useRef<Map<string, number>>(new Map());
+  const gpsLastPersist = useRef<Map<string, number>>(new Map());
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
 
@@ -249,7 +254,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           type: (r.type as "truck" | "wagon") ?? "truck",
           country: (r.country as "MN" | "RU" | "CN") ?? "MN",
           active: (r.active as boolean) ?? true,
-          trailerPlates: (r.trailer_plates as string[] | null) ?? [],
+          trailerPlates:
+            (r.trailer_plates as string | null | undefined)
+              ?.split(",")
+              .map((plate) => plate.trim())
+              .filter(Boolean) ?? [],
         })),
       );
     } catch {
@@ -329,6 +338,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         total_weight: s.totalWeight,
         shipper: s.shipper,
         consignee: s.consignee,
+        shipper_id: s.shipperId ?? null,
+        receiver_id: s.receiverId ?? null,
         cargo_items: s.cargoItems as unknown as Json,
         gps_online: s.gpsOnline ?? true,
         last_gps_at: s.lastGpsAt ?? null,
@@ -381,7 +392,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const snap = nearestOnRoute(path, gpsPos);
             const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
 
-            return {
+            const updated = {
               ...s,
               position: snap.pos,
               progress: snap.t,
@@ -391,6 +402,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               lastKnownPos: snap.pos,
               manualOverride: false,
             };
+
+            // Throttled persistence: only push to server roughly every 5s
+            try {
+              const last = gpsLastPersist.current.get(id) ?? 0;
+              const now = Date.now();
+              if (now - last > 5000) {
+                gpsLastPersist.current.set(id, now);
+                persistField(id, {
+                  position: snap.pos as unknown as Json,
+                  progress: snap.t,
+                  speed: kmh,
+                  last_gps_at: new Date().toISOString(),
+                  last_known_pos: snap.pos as unknown as Json,
+                });
+              }
+            } catch {
+              // ignore persistence errors
+            }
+
+            return updated;
           }),
         );
       },
@@ -427,6 +458,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return { ...s, gpsOnline: true, lastGpsAt: new Date().toISOString() };
       }),
     );
+    // initialize last-persist timestamp so first update persists quickly
+    gpsLastPersist.current.set(id, Date.now() - 6000);
   }, []);
 
   const stopRealGps = useCallback((id: string) => {
@@ -435,6 +468,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       navigator.geolocation.clearWatch(watchId);
       gpsWatchers.current.delete(id);
     }
+    gpsLastPersist.current.delete(id);
     setRealGpsActive((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -689,6 +723,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(data),
@@ -895,7 +930,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         type: d.type,
         country: d.country,
         active: d.active,
-        trailer_plates: d.trailerPlates,
+        trailer_plates: d.trailerPlates.join(", ") || null,
       })
       .select("id")
       .single()
@@ -919,7 +954,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (patch.type !== undefined) row.type = patch.type;
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
-    if (patch.trailerPlates !== undefined) row.trailer_plates = patch.trailerPlates;
+    if (patch.trailerPlates !== undefined)
+      row.trailer_plates = patch.trailerPlates.join(", ") || null;
     supabase
       .from("drivers")
       .update(row as never)
@@ -1004,6 +1040,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         removeShipment,
         overridePosition,
         refreshRoadRoute,
+        reloadShipments: loadShipmentsFromDb,
         markStopDone,
         drivers,
         addDriver,

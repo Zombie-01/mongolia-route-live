@@ -21,24 +21,27 @@
     - Admin-only insert/update/delete policies
 */
 
--- Create customers table
-CREATE TABLE IF NOT EXISTS customers (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  name text NOT NULL DEFAULT '',
-  phone text,
-  email text,
-  address text,
-  created_at timestamptz DEFAULT now()
-);
+-- Add user_id column if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'user_id'
+  ) THEN
+    ALTER TABLE customers ADD COLUMN user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
+-- Update RLS policies if needed
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Authenticated users can read customers" ON customers;
 CREATE POLICY "Authenticated users can read customers"
   ON customers FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Admins can insert customers" ON customers;
 CREATE POLICY "Admins can insert customers"
   ON customers FOR INSERT
   TO authenticated
@@ -50,6 +53,7 @@ CREATE POLICY "Admins can insert customers"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can update customers" ON customers;
 CREATE POLICY "Admins can update customers"
   ON customers FOR UPDATE
   TO authenticated
@@ -68,6 +72,7 @@ CREATE POLICY "Admins can update customers"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can delete customers" ON customers;
 CREATE POLICY "Admins can delete customers"
   ON customers FOR DELETE
   TO authenticated

@@ -26,6 +26,7 @@ function makeTruckIcon(s: Shipment, draggable: boolean) {
         : "";
   const emoji = s.type === "wagon" ? "🚆" : "🚚";
   const flag = s.country === "RU" ? "🇷🇺" : s.country === "CN" ? "🇨🇳" : "";
+  const label = s.vehicleId || s.plateNumber || s.trackingId || "";
   const badge =
     s.type === "wagon"
       ? `<span style="position:absolute;top:-8px;left:-4px;background:#f59e0b;color:#000;font-size:8px;padding:1px 4px;border-radius:6px;font-weight:700">EST</span>`
@@ -35,15 +36,27 @@ function makeTruckIcon(s: Shipment, draggable: boolean) {
   const ring = draggable
     ? "outline:2px dashed rgba(59,130,246,.7);outline-offset:3px;cursor:grab;"
     : "";
+  // glow: green when online, red when offline (wagons get no glow)
+  const online = s.type !== "wagon" && s.gpsOnline !== false;
+  const glowStyle =
+    s.type === "wagon"
+      ? ""
+      : online
+        ? "box-shadow:0 0 10px rgba(16,185,129,.9);"
+        : "box-shadow:0 0 10px rgba(239,68,68,.9);";
+  const labelHtml = label
+    ? `<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);min-width:28px;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;padding:1px 4px;background:rgba(0,0,0,.75);color:#fff;font-size:10px;line-height:1;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.25)">${label}</div>`
+    : "";
+
   return L.divIcon({
     className: "",
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-    html: `<div class="truck-marker ${cls}" style="${ring}">${emoji}${
+    iconSize: [40, 44],
+    iconAnchor: [20, 18],
+    html: `<div class="truck-marker ${cls}" style="${ring}${glowStyle}">${emoji}${
       flag
         ? `<span style="position:absolute;bottom:-4px;right:-6px;font-size:12px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">${flag}</span>`
         : ""
-    }${badge}</div>`,
+    }${badge}${labelHtml}</div>`,
   });
 }
 

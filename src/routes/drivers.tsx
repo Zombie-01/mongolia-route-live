@@ -25,6 +25,7 @@ function emptyDriver(): Driver {
     active: true,
     trailerPlates: [],
     passportImage: "",
+    profileImage: "",
     accountNumber: "",
     mongoliaPhone: "",
     russiaPhone: "",
@@ -46,8 +47,26 @@ function DriversPage() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountCreated, setAccountCreated] = useState(false);
   const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [profileFile, setProfileFile] = useState<File | null>(null);
+  const [detailDriver, setDetailDriver] = useState<Driver | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
+    // init
+    setIsMobile(mq.matches);
+    if (mq.addEventListener) mq.addEventListener("change", handler as any);
+    else mq.addListener(handler as any);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", handler as any);
+      else mq.removeListener(handler as any);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sentinelRef.current) return;
@@ -95,6 +114,7 @@ function DriversPage() {
     // If editing, optionally upload new passport image then update
     if (editing) {
       let passportUrl = form.passportImage;
+      let profileUrl = form.profileImage;
       if (passportFile) {
         const ext = passportFile.name.split(".").pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
@@ -112,13 +132,28 @@ function DriversPage() {
         passportUrl = urlData.publicUrl;
       }
 
-      const updated = { ...form, passportImage: passportUrl };
+      if (profileFile) {
+        const ext = profileFile.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        const path = `driver-profiles/${fileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("driver-profiles")
+          .upload(path, profileFile, { upsert: true });
+        if (uploadError) {
+          setAccountError("Профайл зураг байрлуулахад алдаа: " + uploadError.message);
+          return;
+        }
+        const { data: urlData } = await supabase.storage.from("driver-profiles").getPublicUrl(path);
+        profileUrl = urlData.publicUrl;
+      }
+
+      const updated = { ...form, passportImage: passportUrl, profileImage: profileUrl };
       updateDriver(editing.id, updated);
-      if (passportFile) {
-        await supabase
-          .from("drivers")
-          .update({ passport_photo_url: passportUrl })
-          .eq("id", editing.id);
+      const updatePayload: any = {};
+      if (passportFile) updatePayload.passport_photo_url = passportUrl;
+      if (profileFile) updatePayload.profile_photo_url = profileUrl;
+      if (Object.keys(updatePayload).length > 0) {
+        await supabase.from("drivers").update(updatePayload).eq("id", editing.id);
       }
       setFormOpen(false);
       return;
@@ -155,6 +190,7 @@ function DriversPage() {
     const driverWithUser = { ...form };
     // if user selected a passport file, upload it and attach URL
     let passportUrl: string | undefined = form.passportImage;
+    let profileUrl: string | undefined = form.profileImage;
     if (passportFile) {
       const ext = passportFile.name.split(".").pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
@@ -171,12 +207,29 @@ function DriversPage() {
       passportUrl = urlData.publicUrl;
       driverWithUser.passportImage = passportUrl;
     }
+    if (profileFile) {
+      const ext = profileFile.name.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+      const path = `driver-profiles/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("driver-profiles")
+        .upload(path, profileFile, { upsert: true });
+      if (uploadError) {
+        setCreatingAccount(false);
+        setAccountError("Профайл зураг байрлуулахад алдаа: " + uploadError.message);
+        return;
+      }
+      const { data: urlData } = await supabase.storage.from("driver-profiles").getPublicUrl(path);
+      profileUrl = urlData.publicUrl;
+      driverWithUser.profileImage = profileUrl;
+    }
     addDriver(driverWithUser);
 
     // Also update the driver row with user_id and email in the DB
     if (result.user_id) {
       const updatePayload: any = { user_id: result.user_id, email: accountEmail };
       if (passportUrl) updatePayload.passport_photo_url = passportUrl;
+      if (profileUrl) updatePayload.profile_photo_url = profileUrl;
       await supabase
         .from("drivers")
         .update(updatePayload)
@@ -191,6 +244,36 @@ function DriversPage() {
 
   const typeLabel = (t: string) => (t === "wagon" ? "🚆 Вагон" : "🚚 Машин");
   const countryFlag = (c: string) => (c === "RU" ? "🇷🇺" : c === "CN" ? "🇨🇳" : "🇲🇳");
+
+  const downloadJson = (d: Driver) => {
+    const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${d.name.replace(/\s+/g, "_") || d.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadImage = async (url: string | undefined, filename: string) => {
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = u;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(u);
+    } catch (e) {
+      console.error("Download failed", e);
+    }
+  };
 
   return (
     <AppShell>
@@ -212,52 +295,114 @@ function DriversPage() {
           </div>
 
           <div className="mt-6 space-y-3">
-            {visibleDrivers.map((d) => (
-              <motion.div key={d.id} layout className="glass rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base font-semibold">{d.name}</span>
-                      <span className="text-sm">{countryFlag(d.country)}</span>
-                      <span className="text-xs text-muted-foreground">{typeLabel(d.type)}</span>
-                      {!d.active && (
-                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
-                          Идэвхгүй
-                        </span>
-                      )}
+            {visibleDrivers.map((d) => {
+              if (isMobile) {
+                return (
+                  <motion.div key={d.id} layout className="glass w-full rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={d.profileImage || "/profile-placeholder.png"}
+                        alt={d.name}
+                        className="h-14 w-14 rounded-full object-cover"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-semibold truncate">{d.name}</span>
+                          <span className="text-xs text-muted-foreground">{typeLabel(d.type)}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {d.phone} · {d.plateNumber}
+                        </div>
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          {d.trailerPlates.length > 0 ? d.trailerPlates.join(", ") : ""}
+                        </div>
+                      </div>
+                      <div className="ml-auto flex flex-col items-end gap-2">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setDetailDriver(d)}
+                            className="rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground"
+                          >
+                            👁
+                          </button>
+                          <button
+                            onClick={() => openEdit(d)}
+                            className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 text-xs text-primary"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (confirm(`${d.name}-г устгах уу?`)) removeDriver(d.id);
+                          }}
+                          className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive"
+                        >
+                          🗑
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
-                      <span>Утас: {d.phone}</span>
-                      <span>Үнэмлэх: {d.license}</span>
-                      <span>Дугаар: {d.plateNumber}</span>
-                      <span>Туршлага: {d.experience} жил</span>
-                      <span>Даац: {d.capacity}</span>
-                      <span>Үнэлгээ: ⭐ {d.rating.toFixed(1)}</span>
-                      <span>Машин: {d.vehicleId}</span>
-                      {d.trailerPlates.length > 0 && (
-                        <span className="col-span-2">Чиргүүл: {d.trailerPlates.join(", ")}</span>
-                      )}
+                  </motion.div>
+                );
+              }
+              return (
+                <motion.div key={d.id} layout className="glass rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={d.profileImage || "/profile-placeholder.png"}
+                          alt={d.name}
+                          className="h-9 w-9 rounded-full object-cover"
+                        />
+                        <span className="text-base font-semibold">{d.name}</span>
+                        <span className="text-sm">{countryFlag(d.country)}</span>
+                        <span className="text-xs text-muted-foreground">{typeLabel(d.type)}</span>
+                        {!d.active && (
+                          <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
+                            Идэвхгүй
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
+                        <span>Утас: {d.phone}</span>
+                        <span>Үнэмлэх: {d.license}</span>
+                        <span>Дугаар: {d.plateNumber}</span>
+                        <span>Туршлага: {d.experience} жил</span>
+                        <span>Даац: {d.capacity}</span>
+                        <span>Үнэлгээ: ⭐ {d.rating.toFixed(1)}</span>
+                        <span>Машин: {d.vehicleId}</span>
+                        {d.trailerPlates.length > 0 && (
+                          <span className="col-span-2">Чиргүүл: {d.trailerPlates.join(", ")}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDetailDriver(d)}
+                        className="rounded-md border border-border bg-card/60 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        👁 Харах
+                      </button>
+                      <button
+                        onClick={() => openEdit(d)}
+                        className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
+                      >
+                        ✎ Засах
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`${d.name}-г устгах уу?`)) removeDriver(d.id);
+                        }}
+                        className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
+                      >
+                        🗑
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openEdit(d)}
-                      className="rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1 text-xs text-primary hover:bg-primary/25"
-                    >
-                      ✎ Засах
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`${d.name}-г устгах уу?`)) removeDriver(d.id);
-                      }}
-                      className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
 
             <div ref={sentinelRef} />
 
@@ -358,6 +503,41 @@ function DriversPage() {
                     )}
                   </div>
                 )}
+
+                {/* Profile image field */}
+                <div className="mb-3">
+                  <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Профайл зураг
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setProfileFile(f);
+                      if (f) setForm({ ...form, profileImage: "" });
+                    }}
+                    className="inp"
+                  />
+                  {form.profileImage && !profileFile && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Суулгасан зураг:
+                      <a
+                        href={form.profileImage}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary"
+                      >
+                        харах
+                      </a>
+                    </div>
+                  )}
+                  {profileFile && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Файл сонгогдсоно: {profileFile.name}
+                    </div>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Нэр">
@@ -585,6 +765,124 @@ function DriversPage() {
                 .inp { width: 100%; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; outline: none; }
                 .inp:focus { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 30%, transparent); }
               `}</style>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {detailDriver && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setDetailDriver(null)}
+            style={{ zIndex: 10000 }}
+            className="fixed inset-0 flex items-center justify-center bg-background/70 p-4 backdrop-blur"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass flex w-full max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-2xl"
+            >
+              <div className="border-b border-border p-4 sm:p-5">
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Жолооч мэдээлэл
+                </div>
+                <h3 className="mt-1 truncate text-lg font-semibold">{detailDriver.name}</h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+                <div className="flex gap-4">
+                  <img
+                    src={detailDriver.profileImage || "/profile-placeholder.png"}
+                    alt="profile"
+                    className="h-28 w-28 rounded-xl object-cover"
+                  />
+                  <div>
+                    <div className="text-sm font-medium">{detailDriver.name}</div>
+                    <div className="text-xs text-muted-foreground">Утас: {detailDriver.phone}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Үнэмлэх: {detailDriver.license}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Дугаар: {detailDriver.plateNumber}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Машин: {detailDriver.vehicleId}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Даац: {detailDriver.capacity}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Туршлага: {detailDriver.experience} жил
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Үнэлгээ: {detailDriver.rating}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Паспорын зураг
+                    </div>
+                    {detailDriver.passportImage ? (
+                      <img
+                        src={detailDriver.passportImage}
+                        alt="passport"
+                        className="w-full max-w-sm rounded"
+                      />
+                    ) : (
+                      <div className="text-xs text-muted-foreground">Байхгүй</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Чиргүүлүүд
+                    </div>
+                    {detailDriver.trailerPlates.length > 0 ? (
+                      <div className="text-sm">{detailDriver.trailerPlates.join(", ")}</div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">Бүртгэгдээгүй</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-border p-3 sm:p-4">
+                <button
+                  onClick={() => setDetailDriver(null)}
+                  className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4"
+                >
+                  Хаах
+                </button>
+                <button
+                  onClick={() => detailDriver && downloadJson(detailDriver)}
+                  className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
+                >
+                  JSON татах
+                </button>
+                <button
+                  onClick={() =>
+                    downloadImage(detailDriver.profileImage, `${detailDriver.name}_profile.jpg`)
+                  }
+                  className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
+                >
+                  Профайл татах
+                </button>
+                <button
+                  onClick={() =>
+                    downloadImage(detailDriver.passportImage, `${detailDriver.name}_passport.jpg`)
+                  }
+                  className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
+                >
+                  Паспор татах
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

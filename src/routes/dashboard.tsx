@@ -30,6 +30,7 @@ function DashboardPage() {
     removeShipment,
     overridePosition,
     markStopDone,
+    reloadShipments,
   } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
@@ -38,6 +39,7 @@ function DashboardPage() {
   const [editing, setEditing] = useState<Shipment | null>(null);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const detail = shipments.find((s) => s.id === detailId) ?? null;
+  const [showDelivered, setShowDelivered] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -91,6 +93,29 @@ function DashboardPage() {
               >
                 Бүгд
               </button>
+              {!showDelivered ? (
+                <button
+                  onClick={async () => {
+                    // fetch fresh shipments then show delivered
+                    try {
+                      await reloadShipments();
+                    } catch {
+                      // ignore
+                    }
+                    setShowDelivered(true);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Хүргэгдсэн
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowDelivered(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Хүргэгдсэн нуух
+                </button>
+              )}
               <button
                 onClick={() => {
                   setEditing(null);
@@ -104,74 +129,81 @@ function DashboardPage() {
           </div>
 
           <div className="flex-1 space-y-2 overflow-y-auto p-4 pb-24 lg:pb-4">
-            {shipments.map((s) => {
-              const meta = statusMeta[s.status];
-              const active = focus === s.id;
-              const gpsOff = s.type !== "wagon" && s.gpsOnline === false;
-              return (
-                <motion.button
-                  layout
-                  key={s.id}
-                  onClick={() => {
-                    setFocus(s.id);
-                    setDetailId(s.id);
-                    setMobileView("map");
-                  }}
-                  className={`glass w-full rounded-xl p-3 text-left transition-all ${
-                    active ? "ring-2 ring-primary/60 glow" : "hover:border-border"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-xs text-muted-foreground">{s.trackingId}</div>
-                      <div className="mt-0.5 text-sm font-medium">{s.cargo}</div>
+            {(() => {
+              const visible = showDelivered
+                ? shipments
+                : shipments.filter((x) => x.status !== "delivered");
+              return visible.map((s) => {
+                const meta = statusMeta[s.status];
+                const active = focus === s.id;
+                const gpsOff = s.type !== "wagon" && s.gpsOnline === false;
+                return (
+                  <motion.button
+                    layout
+                    key={s.id}
+                    onClick={() => {
+                      setFocus(s.id);
+                      setDetailId(s.id);
+                      setMobileView("map");
+                    }}
+                    className={`glass w-full rounded-xl p-3 text-left transition-all ${
+                      active ? "ring-2 ring-primary/60 glow" : "hover:border-border"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground">{s.trackingId}</div>
+                        <div className="mt-0.5 text-sm font-medium">{s.cargo}</div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>
+                          {meta.label}
+                        </span>
+                        {s.type === "wagon" && (
+                          <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
+                            EST
+                          </span>
+                        )}
+                        {gpsOff && (
+                          <span className="rounded-full border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 text-[9px] text-destructive">
+                            GPS OFF
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>
-                        {meta.label}
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{s.origin}</span>
+                      <span className="text-primary">→</span>
+                      <span>{s.destination}</span>
+                    </div>
+                    <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-secondary">
+                      <motion.div
+                        className="h-full bg-primary"
+                        animate={{ width: `${Math.round(s.progress * 100)}%` }}
+                        transition={{ duration: 0.6 }}
+                      />
+                    </div>
+                    <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+                      <span>
+                        {s.driver} · {s.vehicleId}
                       </span>
-                      {s.type === "wagon" && (
-                        <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
-                          EST
-                        </span>
-                      )}
-                      {gpsOff && (
-                        <span className="rounded-full border border-destructive/40 bg-destructive/15 px-1.5 py-0.5 text-[9px] text-destructive">
-                          GPS OFF
-                        </span>
-                      )}
+                      <span>
+                        {s.speed} км/ц · ETA {s.eta}
+                      </span>
                     </div>
-                  </div>
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{s.origin}</span>
-                    <span className="text-primary">→</span>
-                    <span>{s.destination}</span>
-                  </div>
-                  <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-secondary">
-                    <motion.div
-                      className="h-full bg-primary"
-                      animate={{ width: `${Math.round(s.progress * 100)}%` }}
-                      transition={{ duration: 0.6 }}
-                    />
-                  </div>
-                  <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
-                    <span>
-                      {s.driver} · {s.vehicleId}
-                    </span>
-                    <span>
-                      {s.speed} км/ц · ETA {s.eta}
-                    </span>
-                  </div>
-                </motion.button>
-              );
-            })}
+                  </motion.button>
+                );
+              });
+            })()}
           </div>
         </aside>
 
         {/* Map */}
         <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
           <FleetMap
-            shipments={shipments}
+            shipments={
+              showDelivered ? shipments : shipments.filter((x) => x.status !== "delivered")
+            }
             focusId={focus}
             onSelect={(id) => {
               setFocus(id);
@@ -204,6 +236,23 @@ function DashboardPage() {
           />
           <div className="glass pointer-events-none absolute left-4 top-14 hidden rounded-xl px-3 py-2 text-xs text-muted-foreground lg:top-4 lg:block">
             🛰 Шууд GPS · 🚆 Вагон = цагаар тооцоологдоно · Админ маркерыг чирж байршил шинэчилнэ
+          </div>
+          {/* Legend for marker glow: green = live, red = offline */}
+          <div className="glass pointer-events-none absolute right-4 top-14 hidden rounded-xl px-3 py-2 text-xs text-muted-foreground lg:top-4 lg:block">
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block h-3 w-3 rounded-full"
+                style={{ boxShadow: "0 0 8px rgba(16,185,129,.9)", background: "#10b981" }}
+              />
+              <span>Live GPS</span>
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <span
+                className="inline-block h-3 w-3 rounded-full"
+                style={{ boxShadow: "0 0 8px rgba(239,68,68,.9)", background: "#ef4444" }}
+              />
+              <span>Offline</span>
+            </div>
           </div>
         </div>
       </div>

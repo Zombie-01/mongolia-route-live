@@ -13,9 +13,16 @@ export const Route = createFileRoute("/driver")({
 
 function DriverPage() {
   const {
-    role, loading, shipments, setStatus,
-    sharingIds, toggleSharing, setGpsOnline,
-    startRealGps, stopRealGps, realGpsActive,
+    role,
+    name,
+    loading,
+    shipments,
+    setStatus,
+    sharingIds,
+    setGpsOnline,
+    startRealGps,
+    stopRealGps,
+    realGpsActive,
   } = useStore();
   const nav = useNavigate();
   const [active, setActive] = useState<string | null>(null);
@@ -29,13 +36,27 @@ function DriverPage() {
 
   if (loading || !role) return null;
 
-  const myShipments = shipments.slice(0, 2);
-  const current = shipments.find((s) => s.id === active) ?? myShipments[0];
-  if (!current) return null;
-  const sharing = sharingIds.has(current.id);
+  const myShipments = name ? shipments.filter((s) => s.driver === name) : [];
+  const current = myShipments.find((s) => s.id === active) ?? myShipments[0];
+  if (!current) {
+    return (
+      <AppShell>
+        <div className="grid h-full place-items-center p-8 text-center text-sm text-muted-foreground">
+          <div className="max-w-md rounded-3xl border border-border bg-background/80 p-8 shadow-sm">
+            <div className="text-xl font-semibold">Танд одоогоор ямар ч тээш оноогдоогүй байна</div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Жолоочийн хуудас зөвхөн танд хуваарилагдсан shipment-үүдийг харуулна.
+            </p>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   const isWagon = current.type === "wagon";
   const gpsLive = realGpsActive.has(current.id);
   const gpsOnline = current.gpsOnline !== false && !isWagon;
+  const gpsActive = !isWagon && (gpsLive || gpsOnline);
 
   const statusBtns: { v: ShipmentStatus; label: string }[] = [
     { v: "in_transit", label: "Замд" },
@@ -45,23 +66,15 @@ function DriverPage() {
 
   const handleGpsToggle = () => {
     if (isWagon) return;
-    toggleSharing(current.id);
-    if (gpsLive || gpsOnline) {
-      // Turning OFF
-      stopRealGps(current.id);
-      setGpsOnline(current.id, false);
-      setGpsError(null);
-    } else {
-      // Turning ON — try real GPS first
-      if (!navigator.geolocation) {
-        setGpsError("Таны төхөөрөмж GPS дэмжихгүй байна");
-        setGpsOnline(current.id, true);
-        return;
-      }
-      setGpsError(null);
-      startRealGps(current.id);
+    if (gpsActive) return;
+    if (!navigator.geolocation) {
+      setGpsError("Таны төхөөрөмж GPS дэмжихгүй байна");
       setGpsOnline(current.id, true);
+      return;
     }
+    setGpsError(null);
+    startRealGps(current.id);
+    setGpsOnline(current.id, true);
   };
 
   return (
@@ -77,21 +90,23 @@ function DriverPage() {
           <div className="glass rounded-2xl p-5">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs uppercase tracking-widest text-muted-foreground">Идэвхтэй ачаа</div>
+                <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Идэвхтэй ачаа
+                </div>
                 <div className="mt-1 text-lg font-semibold">{current.trackingId}</div>
               </div>
               <button
                 onClick={handleGpsToggle}
-                disabled={isWagon}
+                disabled={isWagon || gpsActive}
                 className={`relative h-7 w-12 rounded-full transition-colors ${
-                  (gpsLive || gpsOnline) && !isWagon ? "bg-primary" : "bg-secondary"
-                } ${isWagon ? "cursor-not-allowed opacity-50" : ""}`}
+                  gpsActive ? "bg-primary" : "bg-secondary"
+                } ${isWagon || gpsActive ? "cursor-not-allowed opacity-50" : ""}`}
                 aria-label="GPS sharing"
               >
                 <motion.span
                   layout
                   className="absolute top-0.5 h-6 w-6 rounded-full bg-background shadow"
-                  animate={{ left: (gpsLive || gpsOnline) && !isWagon ? 22 : 2 }}
+                  animate={{ left: gpsActive ? 22 : 2 }}
                 />
               </button>
             </div>
@@ -119,6 +134,14 @@ function DriverPage() {
               </div>
             )}
 
+            {!gpsActive && !isWagon && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <span>
+                  ⚠️ GPS асаах шаардлагатай. Та GPS-ээ асаахгүй бол энэ анхааруулга арилахгүй.
+                </span>
+              </div>
+            )}
+
             {gpsError && (
               <div className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                 {gpsError}
@@ -141,11 +164,16 @@ function DriverPage() {
               )}
               <Row label="Хурд" value={`${current.speed} км/ц`} />
               <Row label="ETA" value={current.eta} />
-              <Row label="Байршил" value={`${current.position[0].toFixed(4)}, ${current.position[1].toFixed(4)}`} />
+              <Row
+                label="Байршил"
+                value={`${current.position[0].toFixed(4)}, ${current.position[1].toFixed(4)}`}
+              />
             </div>
 
             <div className="mt-5">
-              <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">Төлөв</div>
+              <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+                Төлөв
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {statusBtns.map((b) => {
                   const on = current.status === b.v;
@@ -183,12 +211,17 @@ function DriverPage() {
           </div>
 
           <div>
-            <div className="mb-2 px-1 text-xs uppercase tracking-wider text-muted-foreground">Миний ачаанууд</div>
+            <div className="mb-2 px-1 text-xs uppercase tracking-wider text-muted-foreground">
+              Миний ачаанууд
+            </div>
             <div className="space-y-2">
               {myShipments.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => { setActive(s.id); setMobileView("map"); }}
+                  onClick={() => {
+                    setActive(s.id);
+                    setMobileView("map");
+                  }}
                   className={`glass w-full rounded-xl p-3 text-left text-sm transition-colors ${
                     current.id === s.id ? "ring-1 ring-primary/50" : ""
                   }`}

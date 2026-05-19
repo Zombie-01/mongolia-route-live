@@ -11,7 +11,7 @@ export const Route = createFileRoute("/track")({
 });
 
 function TrackPage() {
-  const { role, shipments } = useStore();
+  const { role, customerId, shipments } = useStore();
   const nav = useNavigate();
   const [query, setQuery] = useState("MN-2041");
   const [submitted, setSubmitted] = useState("MN-2041");
@@ -21,7 +21,14 @@ function TrackPage() {
     if (!role) nav({ to: "/" });
   }, [role, nav]);
 
-  const found = shipments.find((s) => s.trackingId.toLowerCase() === submitted.toLowerCase());
+  const visibleShipments =
+    role === "customer" && customerId
+      ? shipments.filter((s) => s.shipperId === customerId || s.receiverId === customerId)
+      : shipments;
+
+  const found = visibleShipments.find(
+    (s) => s.trackingId.toLowerCase() === submitted.toLowerCase(),
+  );
 
   return (
     <AppShell>
@@ -35,7 +42,9 @@ function TrackPage() {
         >
           <div>
             <h1 className="text-xl font-semibold">Ачаа хайх</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Хяналтын дугаараа оруулж шууд хянана уу.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Хяналтын дугаараа оруулж шууд хянана уу.
+            </p>
           </div>
 
           <form
@@ -58,7 +67,7 @@ function TrackPage() {
           </form>
 
           <div className="flex flex-wrap gap-1.5">
-            {shipments.map((s) => (
+            {visibleShipments.map((s) => (
               <button
                 key={s.id}
                 onClick={() => {
@@ -73,6 +82,24 @@ function TrackPage() {
             ))}
           </div>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (!found) return;
+                const content = `<!doctype html><html><head><meta charset="utf-8"><title>Shipment ${found.trackingId}</title><style>body{font-family:sans-serif;color:#111;margin:24px;}h1{font-size:28px;margin-bottom:8px;}h2{font-size:18px;margin:16px 0 8px;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{padding:8px;border:1px solid #ccc;text-align:left;}th{background:#f4f4f4;}</style></head><body><h1>Shipment ${found.trackingId}</h1><p><strong>${found.cargo}</strong></p><h2>Ачаа мэдээлэл</h2><table><tbody><tr><th>Төлөв</th><td>${found.status === "delivered" ? "Хүргэгдсэн" : found.status === "stopped" ? "Зогссон" : found.status === "Замд"}</td></tr><tr><th>Замнал</th><td>${found.origin} → ${found.destination}</td></tr><tr><th>Хурд</th><td>${found.speed} км/ц</td></tr><tr><th>ETA</th><td>${found.eta}</td></tr><tr><th>Байршил</th><td>${found.position[0].toFixed(4)}, ${found.position[1].toFixed(4)}</td></tr></tbody></table><h2>Жолоочийн мэдээлэл</h2><table><tbody><tr><th>Жолооч</th><td>${found.driver}</td></tr><tr><th>Утас</th><td>${found.driverPhone}</td></tr><tr><th>Үнэмлэх</th><td>${found.driverLicense}</td></tr><tr><th>Туршлага</th><td>${found.driverExperience}</td></tr><tr><th>Үнэлгээ</th><td>${found.driverRating.toFixed(1)}</td></tr><tr><th>Машин</th><td>${found.vehicleId}</td></tr><tr><th>Плат</th><td>${found.plateNumber}</td></tr></tbody></table><h2>Буух цэгүүд</h2><table><tbody>${found.dropoffs.map((d, i) => `<tr><th>#${i + 1} ${d.location}</th><td>ETA ${d.eta} · ${d.status === "done" ? "Буулгасан" : "Хүлээгдэж буй"}</td></tr>`).join("")}</tbody></table></body></html>`;
+                const printWindow = window.open("", "_blank", "width=900,height=700");
+                if (!printWindow) return;
+                printWindow.document.write(content);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+              }}
+              className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground hover:bg-secondary"
+            >
+              PDF татах
+            </button>
+          </div>
           <AnimatePresence mode="wait">
             {found ? (
               <motion.div
@@ -84,11 +111,19 @@ function TrackPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-xs uppercase tracking-widest text-muted-foreground">{found.trackingId}</div>
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                      {found.trackingId}
+                    </div>
                     <div className="mt-1 text-lg font-semibold">{found.cargo}</div>
                   </div>
                   <div className="rounded-full border border-primary/30 bg-primary/15 px-2.5 py-1 text-[11px] text-primary">
-                    {found.status === "delivered" ? "Хүргэгдсэн" : found.status === "stopped" ? "Зогссон" : found.status === "delayed" ? "Хоцрол" : "Замд"}
+                    {found.status === "delivered"
+                      ? "Хүргэгдсэн"
+                      : found.status === "stopped"
+                        ? "Зогссон"
+                        : found.status === "delayed"
+                          ? "Хоцрол"
+                          : "Замд"}
                   </div>
                 </div>
 
@@ -122,23 +157,35 @@ function TrackPage() {
                     </>
                   )}
                   <Stat label="Хурд" value={`${found.speed} км/ц`} />
-                  <Stat label="Төлөв" value={found.status === "in_transit" ? "Хөдөлгөөнтэй" : "Зогссон"} />
+                  <Stat
+                    label="Төлөв"
+                    value={found.status === "in_transit" ? "Хөдөлгөөнтэй" : "Зогссон"}
+                  />
                 </div>
 
                 {/* Dropoffs for customer */}
                 {found.dropoffs.length > 0 && (
                   <div className="mt-5">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Буулгах цэгүүд</div>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Буулгах цэгүүд
+                    </div>
                     <div className="space-y-2">
                       {found.dropoffs.map((d, i) => (
-                        <div key={i} className="rounded-lg border border-border bg-card/40 p-2.5 text-xs">
+                        <div
+                          key={i}
+                          className="rounded-lg border border-border bg-card/40 p-2.5 text-xs"
+                        >
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">#{i + 1} {d.location}</span>
-                            <span className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
-                              d.status === "done"
-                                ? "border-accent/30 bg-accent/15 text-accent"
-                                : "border-primary/30 bg-primary/15 text-primary"
-                            }`}>
+                            <span className="font-medium">
+                              #{i + 1} {d.location}
+                            </span>
+                            <span
+                              className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
+                                d.status === "done"
+                                  ? "border-accent/30 bg-accent/15 text-accent"
+                                  : "border-primary/30 bg-primary/15 text-primary"
+                              }`}
+                            >
                               {d.status === "done" ? "Буулгасан" : "Хүлээгдэж буй"}
                             </span>
                           </div>
@@ -163,7 +210,7 @@ function TrackPage() {
         </aside>
 
         <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
-          <FleetMap shipments={found ? [found] : shipments} focusId={found?.id} />
+          <FleetMap shipments={found ? [found] : visibleShipments} focusId={found?.id} />
         </div>
       </div>
     </AppShell>

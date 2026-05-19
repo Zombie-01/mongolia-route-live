@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { etaFromKm, totalRouteKm, distanceKm, CITIES, findCity } from "@/lib/cities";
+import { etaFromKm, totalRouteKm, distanceKm } from "@/lib/cities";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   CargoItem,
@@ -77,14 +77,19 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [form, setForm] = useState<Shipment>(() => initial ?? emptyShipment(stations));
-  const [originName, setOriginName] = useState(initial?.origin ?? stations[0]?.name ?? "Улаанбаатар");
+  const [originName, setOriginName] = useState(
+    initial?.origin ?? stations[0]?.name ?? "Улаанбаатар",
+  );
   const [destName, setDestName] = useState(initial?.destination ?? stations[1]?.name ?? "Дархан");
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data as Customer[]) || [];
     },
@@ -133,7 +138,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
           <Field label="Бригадын дугаар / Вагон ID">
             <input
               value={form.vehicleId}
-              onChange={(e) => setForm({ ...form, vehicleId: e.target.value, plateNumber: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, vehicleId: e.target.value, plateNumber: e.target.value })
+              }
               className="inp"
               placeholder="ВАГОН-2204 / 4 вагон"
             />
@@ -162,7 +169,8 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
             <option value="">-- Жолооч сонгох --</option>
             {activeTruckDrivers.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} · {d.plateNumber} · 🚚 {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
+                {d.name} · {d.plateNumber} · 🚚{" "}
+                {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
               </option>
             ))}
           </select>
@@ -192,8 +200,14 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     setWaypointNames([]);
   }, [open, initial, stations]);
 
-  const originStation = useMemo(() => stations.find((s) => s.name === originName), [originName, stations]);
-  const destStation = useMemo(() => stations.find((s) => s.name === destName), [destName, stations]);
+  const originStation = useMemo(
+    () => stations.find((s) => s.name === originName),
+    [originName, stations],
+  );
+  const destStation = useMemo(
+    () => stations.find((s) => s.name === destName),
+    [destName, stations],
+  );
 
   const autoSuggested = useMemo(() => {
     return [] as string[];
@@ -216,7 +230,6 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     const total = form.cargoItems.reduce((sum, c) => sum + (Number(c.qty) || 0), 0);
     return { route, km, eta, total };
   }, [originStation, destStation, form.cargoItems]);
-
 
   const updateItem = (i: number, patch: Partial<CargoItem>) =>
     setForm((f) => ({
@@ -546,18 +559,18 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                           <select
                             value={d.location}
                             onChange={(e) => {
-                              const city = findCity(e.target.value);
+                              const station = stations.find((s) => s.name === e.target.value);
                               updateDropoff(i, {
                                 location: e.target.value,
-                                position: city?.position ?? d.position,
+                                position: station?.position ?? d.position,
                               });
                             }}
                             className="inp"
                           >
                             <option value="">-- Сонгох --</option>
-                            {CITIES.map((c) => (
-                              <option key={c.name} value={c.name}>
-                                {c.name}
+                            {stations.map((s) => (
+                              <option key={s.id} value={s.name}>
+                                {s.name}
                               </option>
                             ))}
                           </select>

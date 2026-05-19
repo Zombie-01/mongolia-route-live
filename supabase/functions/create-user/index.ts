@@ -2,8 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
 interface CreateUserData {
@@ -16,7 +16,7 @@ interface CreateUserData {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
@@ -70,10 +70,13 @@ Deno.serve(async (req: Request) => {
     // Parse request body
     const body: CreateUserData = await req.json();
     if (!body.email || !body.password || !body.role || !body.display_name) {
-      return new Response(JSON.stringify({ error: "Missing required fields: email, password, role, display_name" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Missing required fields: email, password, role, display_name" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (body.role !== "driver" && body.role !== "customer") {
@@ -100,10 +103,13 @@ Deno.serve(async (req: Request) => {
     });
 
     if (createError) {
-      return new Response(JSON.stringify({ error: `Failed to create user: ${createError.message}` }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: `Failed to create user: ${createError.message}` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const userId = newUser.user.id;
@@ -111,15 +117,18 @@ Deno.serve(async (req: Request) => {
     // Insert user role
     const { error: roleInsertError } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: userId, role: body.role });
+      .upsert({ user_id: userId, role: body.role }, { onConflict: "user_id, role" });
 
     if (roleInsertError) {
       // Cleanup: delete the created user if role insert fails
       await supabaseAdmin.auth.admin.deleteUser(userId);
-      return new Response(JSON.stringify({ error: `Failed to assign role: ${roleInsertError.message}` }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: `Failed to assign role: ${roleInsertError.message}` }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Insert profile
@@ -131,15 +140,18 @@ Deno.serve(async (req: Request) => {
       // Profile creation is non-critical; user can still log in
     }
 
-    return new Response(JSON.stringify({
-      user_id: userId,
-      email: body.email,
-      role: body.role,
-      display_name: body.display_name,
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        user_id: userId,
+        email: body.email,
+        role: body.role,
+        display_name: body.display_name,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     console.error("create-user error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
