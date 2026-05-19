@@ -227,7 +227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: r.id as string,
           name: r.name as string,
           city: "",
-          position: [parseFloat(r.latitude as string), parseFloat(r.longitude as string)] as LatLng,
+          position: [Number(r.latitude), Number(r.longitude)] as LatLng,
           type: "station",
           contact: "",
           active: true,
@@ -798,7 +798,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (patch.type !== undefined) row.type = patch.type;
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
-    supabase.from("drivers").update(row).eq("id", id).then(() => {});
+    supabase.from("drivers").update(row as never).eq("id", id).then(() => {});
   };
 
   const removeDriver = (id: string) => {
@@ -831,7 +831,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       row.latitude = patch.position[0];
       row.longitude = patch.position[1];
     }
-    supabase.from("stations").update(row).eq("id", id).then(() => {});
+    supabase.from("stations").update(row as never).eq("id", id).then(() => {});
   };
 
   const removeStation = (id: string) => {

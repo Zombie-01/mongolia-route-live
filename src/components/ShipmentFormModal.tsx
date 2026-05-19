@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { etaFromKm, totalRouteKm, distanceKm } from "@/lib/cities";
+import { etaFromKm, totalRouteKm, distanceKm, CITIES, findCity } from "@/lib/cities";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   CargoItem,
@@ -235,7 +235,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     const lastStop = form.dropoffs[form.dropoffs.length - 1];
     const newDropoff: Dropoff = {
       location: "",
-      position: lastStop?.position ?? destCity?.position ?? [47.9184, 106.9177],
+      position: lastStop?.position ?? destStation?.position ?? [47.9184, 106.9177],
       items: [],
       eta: "",
       status: "pending",

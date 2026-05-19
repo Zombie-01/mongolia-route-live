@@ -14,6 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      customers: {
+        Row: {
+          address: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      drivers: {
+        Row: {
+          active: boolean
+          capacity: string | null
+          country: string
+          created_at: string
+          experience: number | null
+          id: string
+          license: string | null
+          name: string
+          phone: string | null
+          plate_number: string | null
+          rating: number | null
+          type: string
+          updated_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          capacity?: string | null
+          country?: string
+          created_at?: string
+          experience?: number | null
+          id?: string
+          license?: string | null
+          name: string
+          phone?: string | null
+          plate_number?: string | null
+          rating?: number | null
+          type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          capacity?: string | null
+          country?: string
+          created_at?: string
+          experience?: number | null
+          id?: string
+          license?: string | null
+          name?: string
+          phone?: string | null
+          plate_number?: string | null
+          rating?: number | null
+          type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -140,6 +224,33 @@ export type Database = {
           type?: string
           updated_at?: string
           vehicle_id?: string | null
+        }
+        Relationships: []
+      }
+      stations: {
+        Row: {
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          latitude: number
+          longitude: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
