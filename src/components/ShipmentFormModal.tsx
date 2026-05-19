@@ -316,35 +316,35 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
           exit={{ opacity: 0 }}
           onClick={onClose}
           style={{ zIndex: 100000 }}
-          className="fixed inset-0 grid place-items-center bg-background/70 p-4 backdrop-blur"
+          className="fixed inset-0 flex items-center justify-center bg-background/70 p-4 backdrop-blur"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            exit={{ opacity: 0, scale: 0.96, y: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
+            className="glass flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
           >
-            <div className="flex items-center justify-between border-b border-border p-5">
-              <div>
+            <div className="flex items-center justify-between border-b border-border p-4 sm:p-5">
+              <div className="min-w-0 flex-1">
                 <div className="text-xs uppercase tracking-widest text-muted-foreground">
                   {initial ? "Хүргэлт засах" : "Шинэ хүргэлт"}
                 </div>
-                <h3 className="mt-1 text-xl font-semibold">
+                <h3 className="mt-1 truncate text-lg font-semibold sm:text-xl">
                   {originName} → {destName}
                 </h3>
               </div>
               <button
                 onClick={onClose}
-                className="rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                className="shrink-0 rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
               >
                 ✕
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:space-y-5 sm:p-5">
               <Section title="Үндсэн мэдээлэл">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <Field label="Хяналтын дугаар">
                     <input
                       value={form.trackingId}
@@ -623,16 +623,16 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               </Section>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-border bg-background/40 p-4">
+            <div className="flex items-center justify-end gap-2 border-t border-border bg-background/40 p-3 sm:p-4">
               <button
                 onClick={onClose}
-                className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm"
+                className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4"
               >
                 Болих
               </button>
               <button
                 onClick={handleSave}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 sm:px-4"
               >
                 {initial ? "Хадгалах" : "Хүргэлт үүсгэх"}
               </button>
