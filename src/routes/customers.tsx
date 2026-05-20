@@ -26,7 +26,7 @@ const PAGE_SIZE = 10;
 function CustomersPage() {
   const nav = useNavigate();
   const queryClient = useQueryClient();
-  const { role, loading, createUserAccount, stations } = useStore();
+  const { role, loading, createUserAccount, updateUserAccount, stations } = useStore();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [form, setForm] = useState<Customer>({ id: "", name: "" });
@@ -39,7 +39,10 @@ function CustomersPage() {
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -60,6 +63,14 @@ function CustomersPage() {
       const c = data.customer;
 
       if (editing) {
+        if (c.user_id) {
+          const result = await updateUserAccount({
+            userId: c.user_id,
+            email: c.email || undefined,
+            password: data.password || undefined,
+          });
+          if (result.error) throw new Error(result.error);
+        }
         const { error } = await supabase
           .from("customers")
           .update({ name: c.name, phone: c.phone, email: c.email, address: c.address })
@@ -148,9 +159,13 @@ function CustomersPage() {
 
   const handleSave = () => {
     if (!form.name.trim()) return;
+    if (accountPassword && accountPassword.length < 6) {
+      setAccountError("Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой");
+      return;
+    }
     setCreatingAccount(true);
     setAccountError(null);
-    saveMutation.mutate({ customer: form, password: editing ? undefined : accountPassword });
+    saveMutation.mutate({ customer: form, password: accountPassword || undefined });
   };
 
   const visibleCustomers = customers.slice(0, visibleCount);
@@ -165,7 +180,9 @@ function CustomersPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold">Харилцагчид</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Харилцагч компани, хүмүүсийн мэдээлэл удирдлага</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Харилцагч компани, хүмүүсийн мэдээлэл удирдлага
+              </p>
             </div>
             <button
               onClick={openNew}
@@ -200,7 +217,9 @@ function CustomersPage() {
                           {c.phone && <span>Утас: {c.phone}</span>}
                           {c.email && <span>Email: {c.email}</span>}
                           {c.station_id && (
-                            <span>Өртөө: {stations.find((s) => s.id === c.station_id)?.name || "?"}</span>
+                            <span>
+                              Өртөө: {stations.find((s) => s.id === c.station_id)?.name || "?"}
+                            </span>
                           )}
                           {c.address && <span>Байршил: {c.address}</span>}
                         </div>
@@ -231,7 +250,9 @@ function CustomersPage() {
                 {hasMore && (
                   <div className="flex justify-center py-4">
                     <button
-                      onClick={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, customers.length))}
+                      onClick={() =>
+                        setVisibleCount((c) => Math.min(c + PAGE_SIZE, customers.length))
+                      }
                       className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
                     >
                       Илүүг ачааллах ({customers.length - visibleCount} үлдсэн)
@@ -275,21 +296,53 @@ function CustomersPage() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                {/* Auth account section — only for new customers */}
-                {!editing && (
+                {/* Auth account section */}
+                {editing ? (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                      Нууц үг өөрчлөх
+                    </div>
+                    <p className="mb-3 text-[11px] text-muted-foreground">
+                      Хэрэв хэрэглэгчийн нууц үгийг өөрчлөх шаардлагатай бол доорх талбарыг бөглөнө.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="Шинэ нууц үг">
+                        <input
+                          type="password"
+                          value={accountPassword}
+                          onChange={(e) => {
+                            setAccountPassword(e.target.value);
+                            setAccountError(null);
+                          }}
+                          className="inp"
+                          placeholder="Хамгийн багадаа 6 тэмдэгт"
+                        />
+                      </Field>
+                    </div>
+                    {accountError && (
+                      <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {accountError}
+                      </div>
+                    )}
+                  </div>
+                ) : (
                   <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
                       Нэвтрэх бүртгэл үүсгэх
                     </div>
                     <p className="mb-3 text-[11px] text-muted-foreground">
-                      Харилцагч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ бүртгэлээр ачаагаа хянах боломжтой.
+                      Харилцагч системд нэвтрэхийн тулд и-мэйл болон нууц үг оруулна уу. Энэ
+                      бүртгэлээр ачаагаа хянах боломжтой.
                     </p>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Field label="Нууц үг">
                         <input
                           type="password"
                           value={accountPassword}
-                          onChange={(e) => { setAccountPassword(e.target.value); setAccountError(null); }}
+                          onChange={(e) => {
+                            setAccountPassword(e.target.value);
+                            setAccountError(null);
+                          }}
                           className="inp"
                           placeholder="Хамгийн багадаа 6 тэмдэгт"
                         />
@@ -354,7 +407,10 @@ function CustomersPage() {
               </div>
 
               <div className="flex items-center justify-end gap-2 border-t border-border p-4">
-                <button onClick={() => setFormOpen(false)} className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm">
+                <button
+                  onClick={() => setFormOpen(false)}
+                  className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm"
+                >
                   Болих
                 </button>
                 <button

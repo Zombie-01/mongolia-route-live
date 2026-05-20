@@ -41,6 +41,8 @@ export interface Driver {
   accountNumber?: string;
   mongoliaPhone?: string;
   russiaPhone?: string;
+  email?: string | null;
+  userId?: string | null;
 }
 
 export interface Station {
@@ -85,12 +87,19 @@ interface StoreState {
   updateShipment: (id: string, patch: Partial<Shipment>) => void;
   removeShipment: (id: string) => void;
   overridePosition: (id: string, pos: LatLng) => void;
+  updateUserAccount: (data: {
+    userId: string;
+    email?: string;
+    password?: string;
+    display_name?: string;
+    phone?: string;
+  }) => Promise<{ error?: string }>;
   refreshRoadRoute: (id: string) => Promise<void>;
   markStopDone: (shipmentId: string, stopSeq: number) => void;
   reloadShipments: () => Promise<void>;
 
   drivers: Driver[];
-  addDriver: (d: Driver) => void;
+  addDriver: (d: Driver) => Promise<string | undefined>;
   updateDriver: (id: string, patch: Partial<Driver>) => void;
   removeDriver: (id: string) => void;
 
@@ -115,8 +124,10 @@ const DEMO_NAMES: Record<Role, string> = {
 };
 
 function dbToShipment(row: Record<string, unknown>, stops: Record<string, unknown>[]): Shipment {
+  const type = (row.type as "truck" | "wagon") ?? "truck";
   const route = (row.route as LatLng[]) ?? [];
-  const roadRoute = (row.road_route as LatLng[] | null) ?? undefined;
+  const roadRoute =
+    type === "wagon" ? undefined : ((row.road_route as LatLng[] | null) ?? undefined);
   const position = (row.position as LatLng) ?? route[0] ?? [47.9184, 106.9177];
   const lastKnownPos = (row.last_known_pos as LatLng | null) ?? undefined;
   const cargoItems = (row.cargo_items as CargoItem[]) ?? [];
@@ -250,8 +261,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           rating: (r.rating as number) ?? 4.5,
           plateNumber: r.plate_number as string,
           vehicleId: r.vehicle_id as string,
-          profileImage: r.profile_photo_url as string,
-          passportImage: r.passport_photo_url as string,
+          profileImage:
+            (r.profile_photo_url as string | null | undefined) ??
+            (r.profile_image as string | null | undefined) ??
+            "",
+          passportImage:
+            (r.passport_photo_url as string | null | undefined) ??
+            (r.passport_image as string | null | undefined) ??
+            "",
           capacity: r.capacity as string,
           type: (r.type as "truck" | "wagon") ?? "truck",
           country: (r.country as "MN" | "RU" | "CN") ?? "MN",
@@ -261,6 +278,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               ?.split(",")
               .map((plate) => plate.trim())
               .filter(Boolean) ?? [],
+          email: (r.email as string | null) ?? null,
+          userId: (r.user_id as string | null) ?? null,
         })),
       );
     } catch {
@@ -589,12 +608,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       const results = await Promise.all(
-        shipments.map(async (s) => ({ id: s.id, road: await fetchRoadRoute(s.route) })),
+        shipments.map(async (s) => ({
+          id: s.id,
+          road: s.type === "wagon" ? undefined : await fetchRoadRoute(s.route),
+        })),
       );
       if (cancelled) return;
       setShipments((prev) =>
         prev.map((s) => {
           const r = results.find((x) => x.id === s.id);
+          if (s.type === "wagon") return { ...s, roadRoute: undefined };
           if (!r?.road || r.road.length < 2) return s;
           return { ...s, roadRoute: r.road, position: pointOnRoute(r.road, s.progress) };
         }),
@@ -606,68 +629,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [dbReady]);
 
   // ---------------- Simulation loop ----------------
-  // Only simulates shipments that do NOT have real GPS active.
-  // Trucks with real GPS: position comes from Geolocation API.
-  // Trucks with GPS offline: frozen at lastKnownPos.
-  // Wagons: always time-based estimation.
+  // Disabled: no automatic demo movement. Map positions update only from real driver GPS
+  // or manual override, not from generated demo simulation.
   useEffect(() => {
-    const tick = () => {
-      setShipments((prev) =>
-        prev.map((s) => {
-          if (s.status !== "in_transit") return s;
-          const path = s.roadRoute ?? s.route;
-          const isWagon = s.type === "wagon";
-
-          // Wagons: always time-based estimation (no GPS hardware)
-          if (isWagon) {
-            const jitter = 0.0035;
-            const newProgress = Math.min(1, s.progress + jitter);
-            const newPos = pointOnRoute(path, newProgress);
-            const newSpeed = 45 + Math.round(Math.random() * 30);
-            const status: ShipmentStatus = newProgress >= 1 ? "delivered" : "in_transit";
-            return {
-              ...s,
-              progress: newProgress,
-              position: newPos,
-              speed: newSpeed,
-              status,
-              lastKnownPos: newPos,
-              manualOverride: false,
-            };
-          }
-
-          // Trucks with real GPS active: skip simulation (position from Geolocation)
-          if (realGpsActive.has(s.id)) return s;
-
-          // Trucks with GPS offline: freeze at lastKnownPos
-          if (s.gpsOnline === false) {
-            return s;
-          }
-
-          // Trucks with GPS online (simulation mode): advance normally
-          const jitter = 0.002 + Math.random() * 0.004;
-          const newProgress = Math.min(1, s.progress + jitter);
-          const newPos = pointOnRoute(path, newProgress);
-          const newSpeed = 55 + Math.round(Math.random() * 30);
-          const status: ShipmentStatus = newProgress >= 1 ? "delivered" : "in_transit";
-          return {
-            ...s,
-            progress: newProgress,
-            position: newPos,
-            speed: newSpeed,
-            status,
-            lastKnownPos: newPos,
-            lastGpsAt: new Date().toISOString(),
-            manualOverride: false,
-          };
-        }),
-      );
-    };
-    tickRef.current = window.setInterval(tick, 3500);
     return () => {
       if (tickRef.current) window.clearInterval(tickRef.current);
     };
-  }, [realGpsActive]);
+  }, []);
 
   // ---------------- Auth actions ----------------
   const loginDemo = async (r: Role) => {
@@ -725,7 +693,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(data),
@@ -734,6 +701,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const result = await res.json();
       if (!res.ok) return { error: result.error || "Хэрэглэгч үүсгэхэд алдаа гарлаа" };
       return { user_id: result.user_id };
+    } catch {
+      return { error: "Сервертэй холбогдоход алдаа гарлаа" };
+    }
+  };
+
+  const updateUserAccount = async (data: {
+    userId: string;
+    email?: string;
+    password?: string;
+    display_name?: string;
+    phone?: string;
+  }) => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) return { error: "Нэвтрээгүй байна" };
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const res = await fetch(`${supabaseUrl}/functions/v1/update-user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+      if (!res.ok) return { error: result.error || "Хэрэглэгчийг шинэчилж чадсангүй" };
+      return {};
     } catch {
       return { error: "Сервертэй холбогдоход алдаа гарлаа" };
     }
@@ -777,7 +774,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (s.id !== id) return s;
         if (online) {
           const resumePos = s.lastKnownPos ?? s.position;
-          const path = s.roadRoute ?? s.route;
+          const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
           const snap = nearestOnRoute(path, resumePos);
           return {
             ...s,
@@ -810,14 +807,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     setShipments((prev) => [seeded, ...prev]);
     persistShipment(seeded);
-    fetchRoadRoute(s.route).then((road) => {
-      if (!road || road.length < 2) return;
-      setShipments((prev) =>
-        prev.map((x) =>
-          x.id === s.id ? { ...x, roadRoute: road, position: pointOnRoute(road, x.progress) } : x,
-        ),
-      );
-    });
+    if (seeded.type !== "wagon") {
+      fetchRoadRoute(s.route).then((road) => {
+        if (!road || road.length < 2) return;
+        setShipments((prev) =>
+          prev.map((x) =>
+            x.id === s.id ? { ...x, roadRoute: road, position: pointOnRoute(road, x.progress) } : x,
+          ),
+        );
+      });
+    }
   };
 
   const updateShipment = (id: string, patch: Partial<Shipment>) => {
@@ -831,7 +830,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     const current = shipments.find((x) => x.id === id);
     if (current) persistShipment({ ...current, ...patch });
-    if (patch.route) {
+    if (patch.route && current?.type !== "wagon") {
       fetchRoadRoute(patch.route).then((road) => {
         if (!road || road.length < 2) return;
         setShipments((prev) =>
@@ -857,7 +856,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setShipments((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
-        const path = s.roadRoute ?? s.route;
+        const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
         const snap = nearestOnRoute(path, pos);
         return {
           ...s,
@@ -871,7 +870,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     const s = shipments.find((x) => x.id === id);
     if (s) {
-      const path = s.roadRoute ?? s.route;
+      const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
       const snap = nearestOnRoute(path, pos);
       persistField(id, {
         position: snap.pos as unknown as Json,
@@ -885,7 +884,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const refreshRoadRoute = async (id: string) => {
     const s = shipments.find((x) => x.id === id);
-    if (!s) return;
+    if (!s || s.type === "wagon") return;
     const road = await fetchRoadRoute(s.route);
     if (!road || road.length < 2) return;
     setShipments((prev) =>
@@ -916,9 +915,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   // ---------------- Driver CRUD ----------------
-  const addDriver = (d: Driver) => {
+  const addDriver = async (d: Driver) => {
     setDrivers((prev) => [...prev, d]);
-    supabase
+    const { data, error } = await supabase
       .from("drivers")
       .insert({
         name: d.name,
@@ -933,13 +932,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         country: d.country,
         active: d.active,
         trailer_plates: d.trailerPlates.join(", ") || null,
+        profile_photo_url: d.profileImage || null,
+        passport_photo_url: d.passportImage || null,
+        email: d.email || null,
+        user_id: d.userId || null,
       })
       .select("id")
-      .single()
-      .then(({ data }) => {
-        if (data?.id)
-          setDrivers((prev) => prev.map((x) => (x.id === d.id ? { ...x, id: data.id } : x)));
-      });
+      .single();
+    if (data?.id) {
+      setDrivers((prev) => prev.map((x) => (x.id === d.id ? { ...x, id: data.id } : x)));
+      return data.id as string;
+    }
+    return undefined;
   };
 
   const updateDriver = (id: string, patch: Partial<Driver>) => {
@@ -958,6 +962,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (patch.active !== undefined) row.active = patch.active;
     if (patch.trailerPlates !== undefined)
       row.trailer_plates = patch.trailerPlates.join(", ") || null;
+    if (patch.profileImage !== undefined) row.profile_photo_url = patch.profileImage;
+    if (patch.passportImage !== undefined) row.passport_photo_url = patch.passportImage;
+    if (patch.email !== undefined) row.email = patch.email;
+    if (patch.userId !== undefined) row.user_id = patch.userId;
     supabase
       .from("drivers")
       .update(row as never)
@@ -1027,6 +1035,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         logout,
         authMode,
         createUserAccount,
+        updateUserAccount,
         userId,
         customerId,
         shipments,

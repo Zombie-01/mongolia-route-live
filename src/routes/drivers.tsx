@@ -29,14 +29,24 @@ function emptyDriver(): Driver {
     accountNumber: "",
     mongoliaPhone: "",
     russiaPhone: "",
+    email: "",
+    userId: undefined,
   };
 }
 
 const PAGE_SIZE = 10;
 
 function DriversPage() {
-  const { role, loading, drivers, addDriver, updateDriver, removeDriver, createUserAccount } =
-    useStore();
+  const {
+    role,
+    loading,
+    drivers,
+    addDriver,
+    updateDriver,
+    removeDriver,
+    createUserAccount,
+    updateUserAccount,
+  } = useStore();
   const nav = useNavigate();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Driver | null>(null);
@@ -106,11 +116,19 @@ function DriversPage() {
   const openEdit = (d: Driver) => {
     setEditing(d);
     setForm({ ...d });
+    setAccountEmail(d.email ?? "");
+    setAccountPassword("");
+    setAccountError(null);
+    setCreatingAccount(false);
     setFormOpen(true);
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
+    if (editing && accountPassword && accountPassword.length < 6) {
+      setAccountError("Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой");
+      return;
+    }
     // If editing, optionally upload new passport image then update
     if (editing) {
       let passportUrl = form.passportImage;
@@ -147,9 +165,29 @@ function DriversPage() {
         profileUrl = urlData.publicUrl;
       }
 
-      const updated = { ...form, passportImage: passportUrl, profileImage: profileUrl };
+      const updated = {
+        ...form,
+        passportImage: passportUrl,
+        profileImage: profileUrl,
+        email: accountEmail || undefined,
+      };
+
+      if (editing.userId) {
+        const result = await updateUserAccount({
+          userId: editing.userId,
+          email: accountEmail || undefined,
+          password: accountPassword || undefined,
+          display_name: form.name,
+          phone: form.phone || undefined,
+        });
+        if (result.error) {
+          setAccountError(result.error);
+          return;
+        }
+      }
+
       updateDriver(editing.id, updated);
-      const updatePayload: any = {};
+      const updatePayload: any = { email: accountEmail || null };
       if (passportFile) updatePayload.passport_photo_url = passportUrl;
       if (profileFile) updatePayload.profile_photo_url = profileUrl;
       if (Object.keys(updatePayload).length > 0) {
@@ -187,7 +225,7 @@ function DriversPage() {
     }
 
     // Auth account created — now save driver record with user_id
-    const driverWithUser = { ...form };
+    const driverWithUser = { ...form, email: accountEmail, userId: result.user_id };
     // if user selected a passport file, upload it and attach URL
     let passportUrl: string | undefined = form.passportImage;
     let profileUrl: string | undefined = form.profileImage;
@@ -223,19 +261,7 @@ function DriversPage() {
       profileUrl = urlData.publicUrl;
       driverWithUser.profileImage = profileUrl;
     }
-    addDriver(driverWithUser);
-
-    // Also update the driver row with user_id and email in the DB
-    if (result.user_id) {
-      const updatePayload: any = { user_id: result.user_id, email: accountEmail };
-      if (passportUrl) updatePayload.passport_photo_url = passportUrl;
-      if (profileUrl) updatePayload.profile_photo_url = profileUrl;
-      await supabase
-        .from("drivers")
-        .update(updatePayload)
-        .eq("name", form.name)
-        .eq("phone", form.phone);
-    }
+    await addDriver(driverWithUser);
 
     setCreatingAccount(false);
     setAccountCreated(true);
@@ -366,12 +392,12 @@ function DriversPage() {
                       </div>
                       <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
                         <span>Утас: {d.phone}</span>
+                        <span>И-мэйл: {d.email || "-"}</span>
                         <span>Үнэмлэх: {d.license}</span>
                         <span>Дугаар: {d.plateNumber}</span>
                         <span>Туршлага: {d.experience} жил</span>
                         <span>Даац: {d.capacity}</span>
                         <span>Үнэлгээ: ⭐ {d.rating.toFixed(1)}</span>
-                        <span>Машин: {d.vehicleId}</span>
                         {d.trailerPlates.length > 0 && (
                           <span className="col-span-2">Чиргүүл: {d.trailerPlates.join(", ")}</span>
                         )}
@@ -460,8 +486,49 @@ function DriversPage() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
-                {/* Auth account section — only for new drivers */}
-                {!editing && (
+                {/* Auth account section */}
+                {editing ? (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                      Нэвтрэх бүртгэл засах
+                    </div>
+                    <p className="mb-3 text-[11px] text-muted-foreground">
+                      И-мэйл хаяг бол одоогийн бүртгэлтэй холбоотой. Нууц үгийг өөрчлөх бол доорх
+                      талбарыг бөглөнө үү.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
+                      <Field label="И-мэйл">
+                        <input
+                          type="email"
+                          value={accountEmail}
+                          onChange={(e) => {
+                            setAccountEmail(e.target.value);
+                            setAccountError(null);
+                          }}
+                          className="inp"
+                          placeholder="driver@company.mn"
+                        />
+                      </Field>
+                      <Field label="Шинэ нууц үг">
+                        <input
+                          type="password"
+                          value={accountPassword}
+                          onChange={(e) => {
+                            setAccountPassword(e.target.value);
+                            setAccountError(null);
+                          }}
+                          className="inp"
+                          placeholder="Хэрэв өөрчлөхгүй бол хоосон байлга"
+                        />
+                      </Field>
+                    </div>
+                    {accountError && (
+                      <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {accountError}
+                      </div>
+                    )}
+                  </div>
+                ) : (
                   <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
                       Нэвтрэх бүртгэл үүсгэх
@@ -804,6 +871,9 @@ function DriversPage() {
                   <div>
                     <div className="text-sm font-medium">{detailDriver.name}</div>
                     <div className="text-xs text-muted-foreground">Утас: {detailDriver.phone}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Email: {detailDriver.email || "-"}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       Үнэмлэх: {detailDriver.license}
                     </div>

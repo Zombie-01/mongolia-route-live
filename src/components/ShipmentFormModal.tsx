@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { etaFromKm, totalRouteKm, distanceKm } from "@/lib/cities";
+import { etaFromKm, totalRouteKm, distanceKm, suggestRailWaypoints } from "@/lib/cities";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   CargoItem,
@@ -224,12 +224,19 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
   const computed = useMemo(() => {
     if (!originStation || !destStation) return null;
-    const route: LatLng[] = [originStation.position, destStation.position];
+    const route: LatLng[] =
+      form.type === "wagon"
+        ? [
+            originStation.position,
+            ...suggestRailWaypoints(originStation.position, destStation.position),
+            destStation.position,
+          ]
+        : [originStation.position, destStation.position];
     const km = totalRouteKm(route);
     const eta = etaFromKm(km);
     const total = form.cargoItems.reduce((sum, c) => sum + (Number(c.qty) || 0), 0);
     return { route, km, eta, total };
-  }, [originStation, destStation, form.cargoItems]);
+  }, [originStation, destStation, form.cargoItems, form.type]);
 
   const updateItem = (i: number, patch: Partial<CargoItem>) =>
     setForm((f) => ({
@@ -441,6 +448,13 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                     </select>
                   </Field>
                 </div>
+
+                {form.type === "wagon" && (
+                  <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
+                    🚆 Вагон маршрутыг төмөр замын коридороор тооцно. Тухайн чиглэлд rail хотуудын
+                    ойролцоох гол цэгүүдийг ашиглана.
+                  </div>
+                )}
 
                 {computed && (
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">

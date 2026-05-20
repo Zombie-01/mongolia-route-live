@@ -90,6 +90,36 @@ export function suggestWaypoints(origin: LatLng, dest: LatLng, max = 4): LatLng[
     .map((s) => s.pos);
 }
 
+export function suggestRailWaypoints(origin: LatLng, dest: LatLng, max = 4): LatLng[] {
+  const railCities = CITIES.filter((c) => c.rail);
+  const [ox, oy] = origin;
+  const [dx, dy] = dest;
+  const vx = dx - ox;
+  const vy = dy - oy;
+  const len2 = vx * vx + vy * vy;
+  if (len2 === 0) return [];
+
+  type Scored = { pos: LatLng; t: number; perp: number; name: string };
+  const scored: Scored[] = railCities
+    .map((c) => {
+      const [px, py] = c.position;
+      const t = ((px - ox) * vx + (py - oy) * vy) / len2;
+      const projX = ox + t * vx;
+      const projY = oy + t * vy;
+      const perp = Math.hypot(px - projX, py - projY);
+      return { pos: c.position, t, perp, name: c.name };
+    })
+    .filter((s) => s.t > 0.05 && s.t < 0.95 && s.perp < 0.9)
+    .sort((a, b) => a.perp - b.perp)
+    .slice(0, max * 2);
+
+  return scored
+    .sort((a, b) => a.t - b.t)
+    .filter((s, i, arr) => i === 0 || s.t - arr[i - 1].t > 0.05)
+    .slice(0, max)
+    .map((s) => s.pos);
+}
+
 // Approx great-circle distance in km between two lat/lng points
 export function distanceKm(a: LatLng, b: LatLng): number {
   const R = 6371;

@@ -75,27 +75,8 @@ function isValidLatLng(pos: LatLng | [number, number]): pos is LatLng {
   );
 }
 
-function FitBounds({ shipments, focusId }: { shipments: Shipment[]; focusId?: string }) {
-  const map = useMap();
-  const lastFocus = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (focusId && lastFocus.current !== focusId) {
-      const s = shipments.find((x) => x.id === focusId);
-      if (s) map.flyTo(s.position, 8, { duration: 1.2 });
-      lastFocus.current = focusId;
-      return;
-    }
-    if (!focusId && lastFocus.current !== undefined) {
-      lastFocus.current = undefined;
-      if (!shipments.length) return;
-      const bounds = L.latLngBounds(shipments.map((s) => s.position));
-      map.fitBounds(bounds, { padding: [60, 60] });
-    }
-    if (!focusId && lastFocus.current === undefined && shipments.length) {
-      const bounds = L.latLngBounds(shipments.map((s) => s.position));
-      map.fitBounds(bounds, { padding: [60, 60] });
-    }
-  }, [focusId, shipments, map]);
+function FitBounds() {
+  // No automatic camera movement. Keep the current user view steady while the map updates.
   return null;
 }
 
@@ -154,7 +135,7 @@ export function FleetMap({
       {shipments.map((s) => (
         <Polyline
           key={`r-${s.id}`}
-          positions={s.roadRoute ?? s.route}
+          positions={s.type === "wagon" ? s.route : (s.roadRoute ?? s.route)}
           pathOptions={{
             color:
               s.status === "delayed" ? "#f59e0b" : s.status === "delivered" ? "#6366f1" : "#10b981",
@@ -199,7 +180,7 @@ export function FleetMap({
               if (!editable || !onDragEnd) return;
               const marker = e.target as L.Marker;
               const { lat, lng } = marker.getLatLng();
-              const path = s.roadRoute ?? s.route;
+              const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
               const snap = nearestOnRoute(path, [lat, lng]);
               marker.setLatLng(snap.pos);
               onDragEnd(s.id, snap.pos);
@@ -207,7 +188,6 @@ export function FleetMap({
           }}
         />
       ))}
-      <FitBounds shipments={shipments} focusId={focusId} />
     </MapContainer>
   );
 }

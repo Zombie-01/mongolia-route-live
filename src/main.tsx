@@ -12,3 +12,16 @@ const router = getRouter();
 const root = createRoot(rootElement);
 
 root.render(<RouterProvider router={router} />);
+
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        console.log("Service worker registered:", registration.scope);
+      })
+      .catch((error) => {
+        console.warn("Service worker registration failed:", error);
+      });
+  });
+}
