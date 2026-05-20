@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   pointOnRoute,
   fetchRoadRoute,
+  fetchRailwayRoute,
   nearestOnRoute,
   type LatLng,
   type Shipment,
@@ -608,16 +609,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       const results = await Promise.all(
-        shipments.map(async (s) => ({
-          id: s.id,
-          road: s.type === "wagon" ? undefined : await fetchRoadRoute(s.route),
-        })),
+        shipments.map(async (s) => {
+          if (s.type === "wagon") {
+            const railway = await fetchRailwayRoute(s.route[0], s.route[s.route.length - 1]);
+            return { id: s.id, road: railway };
+          }
+          return {
+            id: s.id,
+            road: await fetchRoadRoute(s.route),
+          };
+        }),
       );
       if (cancelled) return;
       setShipments((prev) =>
         prev.map((s) => {
           const r = results.find((x) => x.id === s.id);
-          if (s.type === "wagon") return { ...s, roadRoute: undefined };
           if (!r?.road || r.road.length < 2) return s;
           return { ...s, roadRoute: r.road, position: pointOnRoute(r.road, s.progress) };
         }),
@@ -830,15 +836,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     const current = shipments.find((x) => x.id === id);
     if (current) persistShipment({ ...current, ...patch });
-    if (patch.route && current?.type !== "wagon") {
-      fetchRoadRoute(patch.route).then((road) => {
+    if (patch.route && current) {
+      const fetchRoute = async () => {
+        let road: LatLng[] | null;
+        if (current.type === "wagon") {
+          road = await fetchRailwayRoute(patch.route![0], patch.route![patch.route!.length - 1]);
+        } else {
+          road = await fetchRoadRoute(patch.route!);
+        }
         if (!road || road.length < 2) return;
         setShipments((prev) =>
           prev.map((x) =>
             x.id === id ? { ...x, roadRoute: road, position: pointOnRoute(road, x.progress) } : x,
           ),
         );
-      });
+      };
+      fetchRoute();
     }
   };
 
@@ -884,8 +897,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const refreshRoadRoute = async (id: string) => {
     const s = shipments.find((x) => x.id === id);
-    if (!s || s.type === "wagon") return;
-    const road = await fetchRoadRoute(s.route);
+    if (!s) return;
+    let road: LatLng[] | null;
+    if (s.type === "wagon") {
+      road = await fetchRailwayRoute(s.route[0], s.route[s.route.length - 1]);
+    } else {
+      road = await fetchRoadRoute(s.route);
+    }
     if (!road || road.length < 2) return;
     setShipments((prev) =>
       prev.map((x) =>
