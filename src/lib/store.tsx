@@ -250,6 +250,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           rating: (r.rating as number) ?? 4.5,
           plateNumber: r.plate_number as string,
           vehicleId: r.vehicle_id as string,
+          profileImage: r.profile_photo_url as string,
+          passportImage: r.passport_photo_url as string,
           capacity: r.capacity as string,
           type: (r.type as "truck" | "wagon") ?? "truck",
           country: (r.country as "MN" | "RU" | "CN") ?? "MN",
