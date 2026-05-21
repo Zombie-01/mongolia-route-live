@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -7,6 +7,7 @@ import {
   useMap,
   CircleMarker,
   useMapEvents,
+  GeoJSON,
 } from "react-leaflet";
 import L from "leaflet";
 import { nearestOnRoute, type LatLng, type Shipment } from "@/lib/demo-data";
@@ -112,7 +113,17 @@ export function FleetMap({
 }: Props) {
   const center = useMemo<[number, number]>(() => [47.9184, 106.9177], []);
   const [mounted, setMounted] = useState(false);
+  const [railGeoJson, setRailGeoJson] = useState<any>(null);
+  const hasWagonShipment = useMemo(() => shipments.some((s) => s.type === "wagon"), [shipments]);
+
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    fetch("/mongolia_russia_railway.geojson")
+      .then((res) => res.json())
+      .then(setRailGeoJson)
+      .catch(() => setRailGeoJson(null));
+  }, []);
+
   if (!mounted)
     return (
       <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">
@@ -131,6 +142,9 @@ export function FleetMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {railGeoJson && (
+        <GeoJSON data={railGeoJson} style={{ color: "#7c3aed", weight: 2, opacity: 0.35 }} />
+      )}
       {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
       {shipments.map((s) => (
         <Polyline

@@ -92,6 +92,7 @@ function TrackPage() {
   const [submitted, setSubmitted] = useState("MN-2041");
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
   const [showDelivered, setShowDelivered] = useState(true);
+  const [mode, setMode] = useState<"all" | "truck" | "railway">("all");
   const [language, setLanguage] = useState<"mn" | "ru">("mn");
   const t = trackLocales[language];
 
@@ -103,9 +104,15 @@ function TrackPage() {
     role === "customer" && customerId
       ? shipments.filter((s) => s.shipperId === customerId || s.receiverId === customerId)
       : shipments;
+  const typeFilteredShipments =
+    mode === "all"
+      ? visibleShipments
+      : visibleShipments.filter((s) =>
+          mode === "truck" ? s.type === "truck" : s.type === "wagon",
+        );
   const filteredShipments = showDelivered
-    ? visibleShipments
-    : visibleShipments.filter((s) => s.status !== "delivered");
+    ? typeFilteredShipments
+    : typeFilteredShipments.filter((s) => s.status !== "delivered");
 
   const found = filteredShipments.find(
     (s) => s.trackingId.toLowerCase() === submitted.toLowerCase(),
@@ -172,7 +179,7 @@ function TrackPage() {
               </button>
             </form>
 
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
@@ -200,6 +207,41 @@ function TrackPage() {
               <div className="text-xs text-muted-foreground">
                 {filteredShipments.length} {t.shipmentsCount}
               </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setMode("all")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  mode === "all"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                {t.all}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("truck")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  mode === "truck"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                🚚 Машин
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("railway")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  mode === "railway"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                🚆 Вагон
+              </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {filteredShipments.map((s) => (
@@ -346,7 +388,17 @@ function TrackPage() {
         </aside>
 
         <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
-          <FleetMap shipments={found ? [found] : filteredShipments} focusId={found?.id} />
+          <FleetMap
+            shipments={found ? [found] : filteredShipments}
+            focusId={found?.id}
+            onSelect={(id) => {
+              const selected = filteredShipments.find((s) => s.id === id);
+              if (!selected) return;
+              setQuery(selected.trackingId);
+              setSubmitted(selected.trackingId);
+              setMobileView("map");
+            }}
+          />
         </div>
       </div>
     </AppShell>

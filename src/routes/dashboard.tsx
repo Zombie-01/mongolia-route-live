@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
+import { RailRouteMap } from "@/components/RailRouteMap";
 import type { Shipment } from "@/lib/demo-data";
 import { ShipmentDetailModal } from "@/components/ShipmentDetailModal";
 import { ShipmentFormModal } from "@/components/ShipmentFormModal";
@@ -38,6 +39,7 @@ function DashboardPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Shipment | null>(null);
   const [mobileView, setMobileView] = useState<"map" | "list">("map");
+  const [mode, setMode] = useState<"all" | "truck" | "railway">("all");
   const detail = shipments.find((s) => s.id === detailId) ?? null;
   const [showDelivered, setShowDelivered] = useState(false);
 
@@ -84,9 +86,11 @@ function DashboardPage() {
             ))}
           </div>
 
-          <div className="flex items-center justify-between px-4 pt-4">
-            <h2 className="text-sm font-semibold">Идэвхтэй ачаанууд</h2>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 px-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Идэвхтэй ачаанууд</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setFocus(undefined)}
                 className="text-xs text-muted-foreground hover:text-foreground"
@@ -96,7 +100,6 @@ function DashboardPage() {
               {!showDelivered ? (
                 <button
                   onClick={async () => {
-                    // fetch fresh shipments then show delivered
                     try {
                       await reloadShipments();
                     } catch {
@@ -128,12 +131,53 @@ function DashboardPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2 px-4 pb-4 pt-2">
+            <button
+              type="button"
+              onClick={() => setMode("all")}
+              className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                mode === "all"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              Бүгд
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("truck")}
+              className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                mode === "truck"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              Машинууд
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("railway")}
+              className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                mode === "railway"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              Төмөр замын
+            </button>
+          </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-4 pb-24 lg:pb-4">
             {(() => {
               const visible = showDelivered
                 ? shipments
                 : shipments.filter((x) => x.status !== "delivered");
-              return visible.map((s) => {
+              const filtered =
+                mode === "all"
+                  ? visible
+                  : visible.filter((x) =>
+                      mode === "truck" ? x.type === "truck" : x.type === "wagon",
+                    );
+              return filtered.map((s) => {
                 const meta = statusMeta[s.status];
                 const active = focus === s.id;
                 const gpsOff = s.type !== "wagon" && s.gpsOnline === false;
@@ -200,18 +244,44 @@ function DashboardPage() {
 
         {/* Map */}
         <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
-          <FleetMap
-            shipments={
-              showDelivered ? shipments : shipments.filter((x) => x.status !== "delivered")
-            }
-            focusId={focus}
-            onSelect={(id) => {
-              setFocus(id);
-              setDetailId(id);
-            }}
-            editable
-            onDragEnd={(id, pos) => overridePosition(id, pos)}
-          />
+          {mode === "railway" ? (
+            <RailRouteMap
+              shipments={(() => {
+                const visible = showDelivered
+                  ? shipments
+                  : shipments.filter((x) => x.status !== "delivered");
+                return visible.filter((x) => x.type === "wagon");
+              })()}
+              focusId={focus}
+              onSelect={(id) => {
+                setFocus(id);
+                setDetailId(id);
+                setMobileView("map");
+              }}
+              editable
+              onDragEnd={(id, pos) => overridePosition(id, pos)}
+            />
+          ) : (
+            <FleetMap
+              shipments={(() => {
+                const visible = showDelivered
+                  ? shipments
+                  : shipments.filter((x) => x.status !== "delivered");
+                return mode === "all"
+                  ? visible
+                  : visible.filter((x) =>
+                      mode === "truck" ? x.type === "truck" : x.type === "wagon",
+                    );
+              })()}
+              focusId={focus}
+              onSelect={(id) => {
+                setFocus(id);
+                setDetailId(id);
+              }}
+              editable
+              onDragEnd={(id, pos) => overridePosition(id, pos)}
+            />
+          )}
           <ShipmentDetailModal
             shipment={detail}
             onClose={() => setDetailId(null)}
