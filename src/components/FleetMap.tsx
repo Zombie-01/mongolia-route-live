@@ -75,6 +75,35 @@ function makeStopIcon(done: boolean) {
   });
 }
 
+/**
+ * Densify a route by inserting intermediate points at a maximum interval.
+ * This gives many more snap-able positions when dragging the train marker
+ * and produces smoother animation through the coordinate array.
+ */
+function densifyRoute(route: LatLng[], maxIntervalMeters: number = 10000): LatLng[] {
+  if (route.length < 2) return route;
+  const result: LatLng[] = [route[0]];
+  for (let i = 0; i < route.length - 1; i++) {
+    const a = route[i];
+    const b = route[i + 1];
+    const segLen = haversineDist(a, b);
+    if (segLen <= maxIntervalMeters) {
+      result.push(b);
+      continue;
+    }
+    // Number of sub-segments to split into
+    const steps = Math.ceil(segLen / maxIntervalMeters);
+    for (let s = 1; s <= steps; s++) {
+      const frac = s / steps;
+      result.push([
+        a[0] + (b[0] - a[0]) * frac,
+        a[1] + (b[1] - a[1]) * frac,
+      ] as LatLng);
+    }
+  }
+  return result;
+}
+
 function isValidLatLng(pos: LatLng | [number, number]): pos is LatLng {
   return (
     Array.isArray(pos) && pos.length === 2 && Number.isFinite(pos[0]) && Number.isFinite(pos[1])
@@ -169,7 +198,9 @@ export function FleetMap({
             });
           }
         });
-        railSegmentsRef.current = segments;
+                // Densify raw GeoJSON segments so dragging has many snap points (~10km spacing)
+        const densifiedSegments = segments.map((seg) => densifyRoute(seg, 10000));
+        railSegmentsRef.current = densifiedSegments;
         // Interpolate wagon shipment routes along the railway
         const wagonRoutes: Record<string, LatLng[]> = {};
         shipments.forEach((s) => {
@@ -217,9 +248,10 @@ export function FleetMap({
               route[0] = first;
               route[route.length - 1] = last;
             }
-            wagonRoutes[s.id] = route;
+                        // Densify the interpolated route so the train follows many intermediate points
+            wagonRoutes[s.id] = densifyRoute(route, 10000);
           } else {
-            wagonRoutes[s.id] = s.route;
+            wagonRoutes[s.id] = densifyRoute(s.route, 10000);
           }
         });
         setRailInterpolated(wagonRoutes);
