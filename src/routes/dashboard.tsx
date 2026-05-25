@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
-import { RailRouteMap } from "@/components/RailRouteMap";
+
 import type { Shipment } from "@/lib/demo-data";
 import { ShipmentDetailModal } from "@/components/ShipmentDetailModal";
 import { ShipmentFormModal } from "@/components/ShipmentFormModal";
@@ -244,44 +244,25 @@ function DashboardPage() {
 
         {/* Map */}
         <div className={`relative ${mobileView === "map" ? "block" : "hidden lg:block"}`}>
-          {mode === "railway" ? (
-            <RailRouteMap
-              shipments={(() => {
-                const visible = showDelivered
-                  ? shipments
-                  : shipments.filter((x) => x.status !== "delivered");
-                return visible.filter((x) => x.type === "wagon");
-              })()}
-              focusId={focus}
-              onSelect={(id) => {
-                setFocus(id);
-                setDetailId(id);
-                setMobileView("map");
-              }}
-              editable
-              onDragEnd={(id, pos) => overridePosition(id, pos)}
-            />
-          ) : (
-            <FleetMap
-              shipments={(() => {
-                const visible = showDelivered
-                  ? shipments
-                  : shipments.filter((x) => x.status !== "delivered");
-                return mode === "all"
-                  ? visible
-                  : visible.filter((x) =>
-                      mode === "truck" ? x.type === "truck" : x.type === "wagon",
-                    );
-              })()}
-              focusId={focus}
-              onSelect={(id) => {
-                setFocus(id);
-                setDetailId(id);
-              }}
-              editable
-              onDragEnd={(id, pos) => overridePosition(id, pos)}
-            />
-          )}
+          <FleetMap
+            shipments={(() => {
+              const visible = showDelivered
+                ? shipments
+                : shipments.filter((x) => x.status !== "delivered");
+              return mode === "all"
+                ? visible
+                : visible.filter((x) =>
+                    mode === "truck" ? x.type === "truck" : x.type === "wagon",
+                  );
+            })()}
+            focusId={focus}
+            onSelect={(id) => {
+              setFocus(id);
+              setDetailId(id);
+            }}
+            editable
+            onDragEnd={(id, pos) => overridePosition(id, pos)}
+          />
           <ShipmentDetailModal
             shipment={detail}
             onClose={() => setDetailId(null)}

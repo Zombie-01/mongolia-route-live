@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { etaFromKm, totalRouteKm, distanceKm, suggestRailWaypoints } from "@/lib/cities";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchRailwayRoute } from "@/lib/demo-data";
 import type {
   CargoItem,
   LatLng,
@@ -83,9 +82,6 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   );
   const [destName, setDestName] = useState(initial?.destination ?? stations[1]?.name ?? "Дархан");
   const [waypointNames, setWaypointNames] = useState<string[]>([]);
-  const [railRoute, setRailRoute] = useState<LatLng[] | null>(null);
-  const [railRouteLoading, setRailRouteLoading] = useState(false);
-  const [railRouteError, setRailRouteError] = useState<string | null>(null);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
@@ -202,9 +198,6 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     setOriginName(f.origin);
     setDestName(f.destination);
     setWaypointNames([]);
-    setRailRoute(null);
-    setRailRouteError(null);
-    setRailRouteLoading(false);
   }, [open, initial, stations]);
 
   const originStation = useMemo(
@@ -216,50 +209,9 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     [destName, stations],
   );
 
-  useEffect(() => {
-    if (!open) return;
-    if (form.type !== "wagon" || !originStation || !destStation) {
-      setRailRoute(null);
-      setRailRouteError(null);
-      setRailRouteLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setRailRouteLoading(true);
-    setRailRouteError(null);
-
-    fetchRailwayRoute(
-      originStation.position[0],
-      originStation.position[1],
-      destStation.position[0],
-      destStation.position[1],
-    )
-      .then((route) => {
-        if (cancelled) return;
-        if (route && route.length > 1) {
-          setRailRoute(route);
-          setRailRouteError(null);
-        } else {
-          setRailRoute(null);
-          setRailRouteError("Төмөр замын геометрийг авч чадсангүй; статик маршрут ашиглана.");
-        }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setRailRoute(null);
-        setRailRouteError("Төмөр замын мэдээлэлд холбогдож чадсангүй.");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setRailRouteLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, form.type, originStation, destStation]);
-
+  // Wagons use suggestRailWaypoints (from local GeoJSON data) for route interpolation.
+  // No Overpass API calls are made — the full railway path is rendered by FleetMap
+  // using the GeoJSON loaded from /railway_routes.geojson.
   const autoSuggested = useMemo(() => {
     return [] as string[];
   }, []);
@@ -277,17 +229,17 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     if (!originStation || !destStation) return null;
     const route: LatLng[] =
       form.type === "wagon"
-        ? (railRoute ?? [
+        ? [
             originStation.position,
             ...suggestRailWaypoints(originStation.position, destStation.position),
             destStation.position,
-          ])
+          ]
         : [originStation.position, destStation.position];
     const km = totalRouteKm(route);
     const eta = etaFromKm(km);
     const total = form.cargoItems.reduce((sum, c) => sum + (Number(c.qty) || 0), 0);
     return { route, km, eta, total };
-  }, [originStation, destStation, form.cargoItems, form.type, railRoute]);
+  }, [originStation, destStation, form.cargoItems, form.type]);
 
   const updateItem = (i: number, patch: Partial<CargoItem>) =>
     setForm((f) => ({
@@ -502,21 +454,8 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
                 {form.type === "wagon" && (
                   <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
-                    🚆 Вагон маршрутыг төмөр замын коридороор тооцно. Тухайн чиглэлд rail хотуудын
-                    ойролцоох гол цэгүүдийг ашиглана.
-                    {railRouteLoading && (
-                      <div className="mt-2 text-[11px] text-muted-foreground">
-                        Төмөр замын геометрийг татаж байна...
-                      </div>
-                    )}
-                    {railRouteError && (
-                      <div className="mt-2 text-[11px] text-warning">{railRouteError}</div>
-                    )}
-                    {!railRouteLoading && !railRouteError && railRoute && (
-                      <div className="mt-2 text-[11px] text-green-600">
-                        Төмөр замын геометрийг амжилттай авчирлаа.
-                      </div>
-                    )}
+                    🚆 Вагон маршрутыг локал GeoJSON файлын төмөр замын цэгүүдээр тооцно. (Overpass
+                    API ашиглахгүй)
                   </div>
                 )}
 

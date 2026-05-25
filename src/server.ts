@@ -12,7 +12,7 @@ let serverEntryPromise: Promise<ServerEntry> | undefined;
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
     serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => ((m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry)),
+      (m) => (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry),
     );
   }
   return serverEntryPromise;
@@ -66,9 +66,51 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+async function handleApiRequest(request: Request): Promise<Response | null> {
+  const url = new URL(request.url);
+
+  if (url.pathname !== "/api/railway-geojson") {
+    return null;
+  }
+
+  if (request.method !== "GET") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+
+  const country = url.searchParams.get("country") || "Mongolia";
+  const arcgisUrl =
+    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/World_Railroads/FeatureServer/0/query";
+  const params = new URLSearchParams({
+    where: `CNTRY_NAME = '${country}'`,
+    outFields: "OBJECTID,RTE_NAME,CNTRY_NAME",
+    f: "geojson",
+  });
+
+  try {
+    const arcgisResponse = await fetch(`${arcgisUrl}?${params.toString()}`);
+    const body = await arcgisResponse.text();
+    return new Response(body, {
+      status: arcgisResponse.status,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  } catch (error) {
+    console.error("Failed to proxy ArcGIS request:", error);
+    return new Response(JSON.stringify({ error: "Failed to fetch railway data" }), {
+      status: 502,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const apiResponse = await handleApiRequest(request);
+      if (apiResponse) return apiResponse;
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

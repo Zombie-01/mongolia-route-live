@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadUserInfoPdf } from "@/lib/user-info-pdf";
 import { useStore, type Station } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 
@@ -109,7 +110,27 @@ function CustomersPage() {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      if (!editing && variables.password) {
+        downloadUserInfoPdf({
+          title: "Харилцагчийн нэвтрэх мэдээлэл",
+          filename: `${variables.customer.name.replace(/\s+/g, "_") || variables.customer.id}_customer_info.pdf`,
+          lines: [
+            { label: "Нэр", value: variables.customer.name },
+            { label: "Утас", value: variables.customer.phone || "" },
+            { label: "Email", value: variables.customer.email || "" },
+            { label: "Password", value: variables.password },
+            {
+              label: "Өртөө",
+              value: stations.find((s) => s.id === variables.customer.station_id)?.name || "",
+            },
+            { label: "Хаяг", value: variables.customer.address || "" },
+          ],
+          notes:
+            "Энэхүү PDF-д харилцагчийн системд нэвтрэх мэдээлэл болон холбоо барих мэдээлэл багтсан болно.",
+        });
+      }
+
       setFormOpen(false);
       setEditing(null);
       setForm({ id: "", name: "" });

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore, type Driver } from "@/lib/store";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadUserInfoPdf } from "@/lib/user-info-pdf";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/drivers")({
@@ -262,6 +263,28 @@ function DriversPage() {
       driverWithUser.profileImage = profileUrl;
     }
     await addDriver(driverWithUser);
+
+    downloadUserInfoPdf({
+      title: "Жолоочийн нэвтрэх мэдээлэл",
+      filename: `${form.name.replace(/\s+/g, "_") || driverWithUser.id}_driver_info.pdf`,
+      lines: [
+        { label: "Нэр", value: form.name },
+        { label: "Утас", value: form.phone || "" },
+        { label: "Email", value: accountEmail },
+        { label: "Password", value: accountPassword },
+        { label: "Цагийн ангилал", value: form.type === "wagon" ? "Вагон" : "Машин" },
+        { label: "Тусгай дугаар", value: form.vehicleId || "" },
+        { label: "Платны дугаар", value: form.plateNumber || "" },
+        { label: "Хүртээмж", value: form.capacity || "" },
+        { label: "Лиценз", value: form.license || "" },
+        { label: "Туршлага", value: form.experience ? `${form.experience} жил` : "" },
+        { label: "Оролтын улс", value: form.country || "" },
+        { label: "Passport зураг", value: passportUrl || "" },
+        { label: "Профайл зураг", value: profileUrl || "" },
+      ],
+      notes:
+        "Энэхүү PDF-д таны системд нэвтрэх ашиглагчийн мэдээлэл, имэйл, нууц үг болон жолоочийн мэдээлэл багтсан болно.",
+    });
 
     setCreatingAccount(false);
     setAccountCreated(true);

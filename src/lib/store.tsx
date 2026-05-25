@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   pointOnRoute,
   fetchRoadRoute,
-  fetchRailwayRoute,
   nearestOnRoute,
   type LatLng,
   type Shipment,
@@ -605,15 +604,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadStationsFromDb,
   ]);
   // ---------------- Road geometry (background) ----------------
+  // Only fetch road geometry for trucks (via OSRM).
+  // Wagons rely solely on the local GeoJSON (`/railway_routes.geojson`)
+  // which is loaded and interpolated in the FleetMap component.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const results = await Promise.all(
         shipments.map(async (s) => {
-          if (s.type === "wagon") {
-            const railway = await fetchRailwayRoute(s.route[0], s.route[s.route.length - 1]);
-            return { id: s.id, road: railway };
-          }
+          // Skip wagons — they use the local GeoJSON instead
+          if (s.type === "wagon") return { id: s.id, road: null };
           return {
             id: s.id,
             road: await fetchRoadRoute(s.route),
@@ -624,6 +624,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setShipments((prev) =>
         prev.map((s) => {
           const r = results.find((x) => x.id === s.id);
+          // For wagons: never set roadRoute — FleetMap uses GeoJSON
+          if (s.type === "wagon") return s;
           if (!r?.road || r.road.length < 2) return s;
           return { ...s, roadRoute: r.road, position: pointOnRoute(r.road, s.progress) };
         }),
@@ -836,14 +838,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     const current = shipments.find((x) => x.id === id);
     if (current) persistShipment({ ...current, ...patch });
-    if (patch.route && current) {
+    if (patch.route && current && current.type !== "wagon") {
       const fetchRoute = async () => {
-        let road: LatLng[] | null;
-        if (current.type === "wagon") {
-          road = await fetchRailwayRoute(patch.route![0], patch.route![patch.route!.length - 1]);
-        } else {
-          road = await fetchRoadRoute(patch.route!);
-        }
+        const road = await fetchRoadRoute(patch.route!);
         if (!road || road.length < 2) return;
         setShipments((prev) =>
           prev.map((x) =>
@@ -898,12 +895,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refreshRoadRoute = async (id: string) => {
     const s = shipments.find((x) => x.id === id);
     if (!s) return;
-    let road: LatLng[] | null;
-    if (s.type === "wagon") {
-      road = await fetchRailwayRoute(s.route[0], s.route[s.route.length - 1]);
-    } else {
-      road = await fetchRoadRoute(s.route);
-    }
+    // Skip wagons — they use the local GeoJSON for routing
+    if (s.type === "wagon") return;
+    const road = await fetchRoadRoute(s.route);
     if (!road || road.length < 2) return;
     setShipments((prev) =>
       prev.map((x) =>

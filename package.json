@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
-    "@googlemaps/react-wrapper": "^1.2.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -55,6 +54,7 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.575.0",
     "osmtogeojson": "^3.0.0-beta.5",

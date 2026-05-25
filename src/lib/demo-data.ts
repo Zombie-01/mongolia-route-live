@@ -64,13 +64,28 @@ export interface Shipment {
 const UB: LatLng = [47.9184, 106.9177];
 const route = (...pts: LatLng[]) => pts;
 
+/** Haversine distance in meters between two lat/lng points */
+export function haversineDist(a: LatLng, b: LatLng): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const sinDLat = Math.sin(dLat / 2);
+  const sinDLon = Math.sin(dLon / 2);
+  const x = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
 // Nearest point on a polyline (projects p onto each segment, returns closest).
-export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: number } {
+export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: number; d: number } {
+  if (route.length === 0) return { pos: p, t: 0 };
   let best = { pos: route[0], t: 0, d: Infinity };
   let acc = 0;
   let total = 0;
+  // Use haversine for accurate distance
   for (let i = 0; i < route.length - 1; i++) {
-    total += Math.hypot(route[i + 1][0] - route[i][0], route[i + 1][1] - route[i][1]);
+    total += haversineDist(route[i], route[i + 1]);
   }
   for (let i = 0; i < route.length - 1; i++) {
     const [ax, ay] = route[i];
@@ -82,8 +97,8 @@ export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: nu
     u = Math.max(0, Math.min(1, u));
     const px = ax + dx * u;
     const py = ay + dy * u;
-    const d = Math.hypot(p[0] - px, p[1] - py);
-    const segLen = Math.sqrt(len2);
+    const d = haversineDist(p, [px, py]);
+    const segLen = haversineDist(route[i], route[i + 1]);
     if (d < best.d) {
       best = { pos: [px, py], t: total > 0 ? (acc + segLen * u) / total : 0, d };
     }
@@ -93,6 +108,7 @@ export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: nu
 }
 
 export function pointOnRoute(route: LatLng[], t: number): LatLng {
+  if (route.length === 0) return [0, 0];
   if (t <= 0) return route[0];
   if (t >= 1) return route[route.length - 1];
   const segs: { a: LatLng; b: LatLng; d: number }[] = [];
@@ -100,7 +116,7 @@ export function pointOnRoute(route: LatLng[], t: number): LatLng {
   for (let i = 0; i < route.length - 1; i++) {
     const a = route[i];
     const b = route[i + 1];
-    const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const d = haversineDist(a, b);
     segs.push({ a, b, d });
     total += d;
   }
@@ -129,103 +145,6 @@ export async function fetchRoadRoute(waypoints: LatLng[]): Promise<LatLng[] | nu
     const coordsOut = json.routes?.[0]?.geometry?.coordinates;
     if (!coordsOut) return null;
     return coordsOut.map(([lng, lat]) => [lat, lng] as LatLng);
-  } catch {
-    return null;
-  }
-}
-
-function distance(a: LatLng, b: LatLng) {
-  return Math.hypot(a[0] - b[0], a[1] - b[1]);
-}
-
-function chainRailSegments(segments: LatLng[][], origin: LatLng, destination: LatLng): LatLng[] {
-  if (segments.length === 0) return [];
-  const used = new Array(segments.length).fill(false);
-  const normalize = (segment: LatLng[]) => segment.slice();
-  let bestIndex = 0;
-  let bestDist = Infinity;
-
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (seg.length === 0) continue;
-    const startDist = distance(seg[0], origin);
-    const endDist = distance(seg[seg.length - 1], origin);
-    const d = Math.min(startDist, endDist);
-    if (d < bestDist) {
-      bestDist = d;
-      bestIndex = i;
-    }
-  }
-
-  let route = normalize(segments[bestIndex]);
-  if (distance(route[route.length - 1], origin) < distance(route[0], origin)) {
-    route.reverse();
-  }
-  used[bestIndex] = true;
-
-  let appended = true;
-  while (appended) {
-    appended = false;
-    const lastPoint = route[route.length - 1];
-    for (let i = 0; i < segments.length; i++) {
-      if (used[i]) continue;
-      const seg = normalize(segments[i]);
-      const startDist = distance(seg[0], lastPoint);
-      const endDist = distance(seg[seg.length - 1], lastPoint);
-      if (startDist < 0.0005 || endDist < 0.0005) {
-        if (endDist < startDist) seg.reverse();
-        route = route.concat(seg.slice(1));
-        used[i] = true;
-        appended = true;
-        break;
-      }
-    }
-  }
-
-  const first = route[0];
-  const last = route[route.length - 1];
-  if (distance(first, origin) > 0.001) {
-    route = [origin, ...route];
-  }
-  if (distance(last, destination) > 0.001) {
-    route = [...route, destination];
-  }
-
-  return route;
-}
-
-// Fetch live railway line geometry from OpenStreetMap Overpass API.
-export async function fetchRailwayRoute(
-  startLat: number,
-  startLng: number,
-  endLat: number,
-  endLng: number,
-): Promise<LatLng[] | null> {
-  try {
-    const minLat = Math.min(startLat, endLat) - 0.1;
-    const maxLat = Math.max(startLat, endLat) + 0.1;
-    const minLng = Math.min(startLng, endLng) - 0.1;
-    const maxLng = Math.max(startLng, endLng) + 0.1;
-    const query = `
-      [out:json][timeout:25];
-      (
-        way["railway"="rail"](${minLat},${minLng},${maxLat},${maxLng});
-      );
-      out geom;
-    `;
-    const response = await fetch(
-      `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`,
-    );
-    if (!response.ok) return null;
-    const data = (await response.json()) as {
-      elements?: Array<{ geometry?: Array<{ lat: number; lon: number }> }>;
-    };
-    const lines = (data.elements ?? [])
-      .map((element) => element.geometry ?? [])
-      .filter((geom) => geom.length > 0)
-      .map((geom) => geom.map((pt) => [pt.lat, pt.lon] as LatLng));
-    if (lines.length === 0) return null;
-    return chainRailSegments(lines, [startLat, startLng], [endLat, endLng]);
   } catch {
     return null;
   }

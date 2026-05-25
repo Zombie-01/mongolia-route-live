@@ -6,3 +6,6 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+public/railway_routes.geojson
+public/rail-mn-ru.json
+.tanstack/

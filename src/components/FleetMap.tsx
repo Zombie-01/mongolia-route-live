@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
   Polyline,
   Marker,
-  useMap,
   CircleMarker,
   useMapEvents,
-  GeoJSON,
 } from "react-leaflet";
 import L from "leaflet";
-import { nearestOnRoute, type LatLng, type Shipment } from "@/lib/demo-data";
+import {
+  pointOnRoute,
+  nearestOnRoute,
+  haversineDist,
+  fetchRoadRoute,
+  type LatLng,
+  type Shipment,
+} from "@/lib/demo-data";
 import type { Station } from "@/lib/store";
 
 if (typeof window !== "undefined") {
@@ -76,11 +81,6 @@ function isValidLatLng(pos: LatLng | [number, number]): pos is LatLng {
   );
 }
 
-function FitBounds() {
-  // No automatic camera movement. Keep the current user view steady while the map updates.
-  return null;
-}
-
 function MapClickHandler({ onMapClick }: { onMapClick?: (pos: LatLng) => void }) {
   useMapEvents({
     click(e) {
@@ -113,16 +113,135 @@ export function FleetMap({
 }: Props) {
   const center = useMemo<[number, number]>(() => [47.9184, 106.9177], []);
   const [mounted, setMounted] = useState(false);
-  const [railGeoJson, setRailGeoJson] = useState<any>(null);
-  const hasWagonShipment = useMemo(() => shipments.some((s) => s.type === "wagon"), [shipments]);
+  const [railInterpolated, setRailInterpolated] = useState<Record<string, LatLng[]>>({});
+  const [roadRoutes, setRoadRoutes] = useState<Record<string, LatLng[] | null>>({});
+  // Store all parsed railway segments in a ref so they're available for snapping anytime
+  const railSegmentsRef = useRef<LatLng[][]>([]);
+
+  // Compute the correct wagon marker position by snapping each wagon's progress
+  // to the detailed GeoJSON-interpolated railway route.
+  // This ensures the train icon follows the full coordinate array of the track,
+  // not just a straight line between origin and destination.
+  const wagonPositions = useMemo(() => {
+    const positions: Record<string, LatLng> = {};
+    shipments.forEach((s) => {
+      if (s.type === "wagon") {
+        const route = railInterpolated[s.id];
+        if (route && route.length >= 2) {
+          positions[s.id] = pointOnRoute(route, s.progress);
+        }
+      }
+    });
+    return positions;
+  }, [shipments, railInterpolated]);
+
+  // Helper: snap a point to the nearest railway track across all segments
+  const snapToRailway = useCallback((point: LatLng): LatLng => {
+    const segs = railSegmentsRef.current;
+    if (segs.length === 0) return point;
+    let bestPoint = point;
+    let bestDist = Infinity;
+    for (const seg of segs) {
+      if (seg.length < 2) continue;
+      const result = nearestOnRoute(seg, point);
+      if (result.d < bestDist) {
+        bestDist = result.d;
+        bestPoint = result.pos;
+      }
+    }
+    return bestPoint;
+  }, []);
 
   useEffect(() => setMounted(true), []);
+  // Load railway GeoJSON and parse segments into ref + interpolate wagon routes
   useEffect(() => {
-    fetch("/mongolia_russia_railway.geojson")
+    fetch("/railway_routes.geojson")
       .then((res) => res.json())
-      .then(setRailGeoJson)
-      .catch(() => setRailGeoJson(null));
+      .then((data) => {
+        // Pre-parse GeoJSON: extract all LineStrings into [lat, lng] arrays
+        const segments: LatLng[][] = [];
+        (data.features ?? []).forEach((f: any) => {
+          if (f.geometry?.type === "LineString") {
+            segments.push(f.geometry.coordinates.map((c: number[]) => [c[1], c[0]] as LatLng));
+          } else if (f.geometry?.type === "MultiLineString") {
+            f.geometry.coordinates.forEach((line: number[][]) => {
+              segments.push(line.map((c: number[]) => [c[1], c[0]] as LatLng));
+            });
+          }
+        });
+        railSegmentsRef.current = segments;
+        // Interpolate wagon shipment routes along the railway
+        const wagonRoutes: Record<string, LatLng[]> = {};
+        shipments.forEach((s) => {
+          if (s.type !== "wagon" || s.route.length < 2) return;
+          const first = s.route[0];
+          const last = s.route[s.route.length - 1];
+          let bestSegment: LatLng[] | null = null;
+          let bestScore = Infinity;
+          for (let fi = 0; fi < segments.length; fi++) {
+            const coords = segments[fi];
+            let sd = Infinity,
+              ed = Infinity;
+            for (const c of coords) {
+              sd = Math.min(sd, haversineDist(first, c));
+              ed = Math.min(ed, haversineDist(last, c));
+            }
+            if (sd < 50000 && ed < 50000 && sd + ed < bestScore) {
+              bestScore = sd + ed;
+              bestSegment = coords;
+            }
+          }
+          if (bestSegment) {
+            let si = 0,
+              ei = 0;
+            let msd = Infinity,
+              med = Infinity;
+            bestSegment.forEach((c, i) => {
+              const ds = haversineDist(first, c);
+              if (ds < msd) {
+                msd = ds;
+                si = i;
+              }
+              const de = haversineDist(last, c);
+              if (de < med) {
+                med = de;
+                ei = i;
+              }
+            });
+            const forward = si <= ei;
+            const a = forward ? si : ei;
+            const b = forward ? ei : si;
+            let route = bestSegment.slice(a, b + 1);
+            if (!forward) route.reverse();
+            if (route.length > 0) {
+              route[0] = first;
+              route[route.length - 1] = last;
+            }
+            wagonRoutes[s.id] = route;
+          } else {
+            wagonRoutes[s.id] = s.route;
+          }
+        });
+        setRailInterpolated(wagonRoutes);
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const missing = shipments.filter(
+      (s) =>
+        s.type !== "wagon" &&
+        !s.roadRoute &&
+        !roadRoutes.hasOwnProperty(s.id) &&
+        s.route.length >= 2,
+    );
+    if (missing.length === 0) return;
+
+    missing.forEach(async (shipment) => {
+      const route = await fetchRoadRoute(shipment.route);
+      setRoadRoutes((prev) => ({ ...prev, [shipment.id]: route }));
+    });
+  }, [shipments, roadRoutes]);
 
   if (!mounted)
     return (
@@ -142,23 +261,30 @@ export function FleetMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {railGeoJson && (
-        <GeoJSON data={railGeoJson} style={{ color: "#7c3aed", weight: 2, opacity: 0.35 }} />
-      )}
       {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
-      {shipments.map((s) => (
-        <Polyline
-          key={`r-${s.id}`}
-          positions={s.type === "wagon" ? s.route : (s.roadRoute ?? s.route)}
-          pathOptions={{
-            color:
-              s.status === "delayed" ? "#f59e0b" : s.status === "delivered" ? "#6366f1" : "#10b981",
-            weight: focusId === s.id ? 4 : 2.5,
-            opacity: focusId && focusId !== s.id ? 0.25 : 0.85,
-            dashArray: s.status === "delivered" ? "6 8" : undefined,
-          }}
-        />
-      ))}
+      {shipments.map((s) => {
+        const effectiveRoute =
+          s.type === "wagon"
+            ? (railInterpolated[s.id] ?? s.route)
+            : (s.roadRoute ?? roadRoutes[s.id] ?? s.route);
+        return (
+          <Polyline
+            key={`r-${s.id}`}
+            positions={effectiveRoute}
+            pathOptions={{
+              color:
+                s.status === "delayed"
+                  ? "#f59e0b"
+                  : s.status === "delivered"
+                    ? "#6366f1"
+                    : "#10b981",
+              weight: focusId === s.id ? 4 : 2.5,
+              opacity: focusId && focusId !== s.id ? 0.25 : 0.85,
+              dashArray: s.status === "delivered" ? "6 8" : undefined,
+            }}
+          />
+        );
+      })}
       {stations
         .filter((st) => isValidLatLng(st.position))
         .map((st) => (
@@ -182,26 +308,42 @@ export function FleetMap({
           />
         )),
       )}
-      {shipments.map((s) => (
-        <Marker
-          key={s.id}
-          position={s.position}
-          icon={makeTruckIcon(s, !!editable)}
-          draggable={!!editable}
-          eventHandlers={{
-            click: () => onSelect?.(s.id),
-            dragend: (e) => {
-              if (!editable || !onDragEnd) return;
-              const marker = e.target as L.Marker;
-              const { lat, lng } = marker.getLatLng();
-              const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
-              const snap = nearestOnRoute(path, [lat, lng]);
-              marker.setLatLng(snap.pos);
-              onDragEnd(s.id, snap.pos);
-            },
-          }}
-        />
-      ))}
+      {shipments.map((s) => {
+        // For wagons: override position with the correct GeoJSON-interpolated
+        // position so the train icon follows every coordinate of the railway track.
+        const markerPos =
+          s.type === "wagon" && wagonPositions[s.id] ? wagonPositions[s.id] : s.position;
+
+        return (
+          <Marker
+            key={s.id}
+            position={markerPos}
+            icon={makeTruckIcon(s, !!editable)}
+            draggable={!!editable}
+            eventHandlers={{
+              click: () => onSelect?.(s.id),
+              dragend: (e) => {
+                if (!editable || !onDragEnd) return;
+                const marker = e.target as L.Marker;
+                const { lat, lng } = marker.getLatLng();
+                const pt: LatLng = [lat, lng];
+                if (s.type === "wagon") {
+                  // For wagons: snap to railway track
+                  const snap = snapToRailway(pt);
+                  marker.setLatLng(snap);
+                  onDragEnd(s.id, snap);
+                } else {
+                  // For trucks: snap to road route
+                  const path = s.roadRoute ?? roadRoutes[s.id] ?? s.route;
+                  const snap = nearestOnRoute(path, pt);
+                  marker.setLatLng(snap.pos);
+                  onDragEnd(s.id, snap.pos);
+                }
+              },
+            }}
+          />
+        );
+      })}
     </MapContainer>
   );
 }
