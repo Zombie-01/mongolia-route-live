@@ -86,7 +86,7 @@ interface StoreState {
   addShipment: (s: Shipment) => void;
   updateShipment: (id: string, patch: Partial<Shipment>) => void;
   removeShipment: (id: string) => void;
-  overridePosition: (id: string, pos: LatLng) => void;
+  overridePosition: (id: string, pos: LatLng, progress?: number) => void;
   updateUserAccount: (data: {
     userId: string;
     email?: string;
@@ -862,10 +862,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .then(() => {});
   };
 
-  const overridePosition = (id: string, pos: LatLng) => {
+  const overridePosition = (id: string, pos: LatLng, progressOverride?: number) => {
     setShipments((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
+        if (s.type === "wagon" && progressOverride !== undefined) {
+          // Wagon: position already snapped to GeoJSON railway by FleetMap,
+          // use the progress calculated along the GeoJSON-interpolated route.
+          // Do NOT snap to straight-line s.route — that would undo the GeoJSON snap.
+          return {
+            ...s,
+            position: pos,
+            progress: progressOverride,
+            lastKnownPos: pos,
+            lastGpsAt: new Date().toISOString(),
+            manualOverride: true,
+          };
+        }
         const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
         const snap = nearestOnRoute(path, pos);
         return {
@@ -880,15 +893,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     const s = shipments.find((x) => x.id === id);
     if (s) {
-      const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
-      const snap = nearestOnRoute(path, pos);
-      persistField(id, {
-        position: snap.pos as unknown as Json,
-        progress: snap.t,
-        last_known_pos: snap.pos as unknown as Json,
-        last_gps_at: new Date().toISOString(),
-        manual_override: true,
-      });
+      if (s.type === "wagon" && progressOverride !== undefined) {
+        persistField(id, {
+          position: pos as unknown as Json,
+          progress: progressOverride,
+          last_known_pos: pos as unknown as Json,
+          last_gps_at: new Date().toISOString(),
+          manual_override: true,
+        });
+      } else {
+        const path = s.type === "wagon" ? s.route : (s.roadRoute ?? s.route);
+        const snap = nearestOnRoute(path, pos);
+        persistField(id, {
+          position: snap.pos as unknown as Json,
+          progress: snap.t,
+          last_known_pos: snap.pos as unknown as Json,
+          last_gps_at: new Date().toISOString(),
+          manual_override: true,
+        });
+      }
     }
   };
 

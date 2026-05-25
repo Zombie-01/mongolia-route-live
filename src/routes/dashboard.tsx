@@ -261,7 +261,7 @@ function DashboardPage() {
               setDetailId(id);
             }}
             editable
-            onDragEnd={(id, pos) => overridePosition(id, pos)}
+            onDragEnd={(id, pos, progress) => overridePosition(id, pos, progress)}
           />
           <ShipmentDetailModal
             shipment={detail}

@@ -124,7 +124,7 @@ interface Props {
   focusId?: string;
   onSelect?: (id: string) => void;
   editable?: boolean;
-  onDragEnd?: (id: string, pos: LatLng) => void;
+  onDragEnd?: (id: string, pos: LatLng, progress?: number) => void;
   onMapClick?: (pos: LatLng) => void;
 }
 
@@ -143,6 +143,9 @@ export function FleetMap({
   const [roadRoutes, setRoadRoutes] = useState<Record<string, LatLng[] | null>>({});
   // Store all parsed railway segments in a ref so they're available for snapping anytime
   const railSegmentsRef = useRef<LatLng[][]>([]);
+  // Also store in state so they can be rendered as Polylines on the map
+  const [railSegments, setRailSegments] = useState<LatLng[][]>([]);
+  const [geoJsonLoaded, setGeoJsonLoaded] = useState(false);
 
   // Compute the correct wagon marker position by snapping each wagon's progress
   // to the detailed GeoJSON-interpolated railway route.
@@ -179,7 +182,7 @@ export function FleetMap({
   }, []);
 
   useEffect(() => setMounted(true), []);
-  // Load railway GeoJSON and parse segments into ref + interpolate wagon routes
+  // Effect 1: Load railway GeoJSON once and parse segments
   useEffect(() => {
     fetch("/railway_routes.geojson")
       .then((res) => res.json())
@@ -198,63 +201,74 @@ export function FleetMap({
         // Densify raw GeoJSON segments so dragging has many snap points (~10km spacing)
         const densifiedSegments = segments.map((seg) => densifyRoute(seg, 10000));
         railSegmentsRef.current = densifiedSegments;
-        // Interpolate wagon shipment routes along the railway
-        const wagonRoutes: Record<string, LatLng[]> = {};
-        shipments.forEach((s) => {
-          if (s.type !== "wagon" || s.route.length < 2) return;
-          const first = s.route[0];
-          const last = s.route[s.route.length - 1];
-          let bestSegment: LatLng[] | null = null;
-          let bestScore = Infinity;
-          for (let fi = 0; fi < segments.length; fi++) {
-            const coords = segments[fi];
-            let sd = Infinity,
-              ed = Infinity;
-            for (const c of coords) {
-              sd = Math.min(sd, haversineDist(first, c));
-              ed = Math.min(ed, haversineDist(last, c));
-            }
-            if (sd < 50000 && ed < 50000 && sd + ed < bestScore) {
-              bestScore = sd + ed;
-              bestSegment = coords;
-            }
-          }
-          if (bestSegment) {
-            let si = 0,
-              ei = 0;
-            let msd = Infinity,
-              med = Infinity;
-            bestSegment.forEach((c, i) => {
-              const ds = haversineDist(first, c);
-              if (ds < msd) {
-                msd = ds;
-                si = i;
-              }
-              const de = haversineDist(last, c);
-              if (de < med) {
-                med = de;
-                ei = i;
-              }
-            });
-            const forward = si <= ei;
-            const a = forward ? si : ei;
-            const b = forward ? ei : si;
-            let route = bestSegment.slice(a, b + 1);
-            if (!forward) route.reverse();
-            if (route.length > 0) {
-              route[0] = first;
-              route[route.length - 1] = last;
-            }
-            // Densify the interpolated route so the train has many intermediate points for smooth dragging
-            wagonRoutes[s.id] = densifyRoute(route, 10000);
-          } else {
-            wagonRoutes[s.id] = densifyRoute(s.route, 10000);
-          }
-        });
-        setRailInterpolated(wagonRoutes);
+        setRailSegments(densifiedSegments);
+        setGeoJsonLoaded(true);
       })
       .catch(() => {});
   }, []);
+
+  // Effect 2: When GeoJSON loaded OR shipments change, recompute wagon interpolations
+  useEffect(() => {
+    if (!geoJsonLoaded) return;
+    const segments = railSegmentsRef.current;
+    if (segments.length === 0) return;
+
+    // Interpolate wagon shipment routes along the railway
+    const wagonRoutes: Record<string, LatLng[]> = {};
+    shipments.forEach((s) => {
+      if (s.type !== "wagon" || s.route.length < 2) return;
+      const first = s.route[0];
+      const last = s.route[s.route.length - 1];
+      let bestSegment: LatLng[] | null = null;
+      let bestScore = Infinity;
+      for (let fi = 0; fi < segments.length; fi++) {
+        const coords = segments[fi];
+        let sd = Infinity,
+          ed = Infinity;
+        for (const c of coords) {
+          sd = Math.min(sd, haversineDist(first, c));
+          ed = Math.min(ed, haversineDist(last, c));
+        }
+        if (sd < 50000 && ed < 50000 && sd + ed < bestScore) {
+          bestScore = sd + ed;
+          bestSegment = coords;
+        }
+      }
+      if (bestSegment) {
+        let si = 0,
+          ei = 0;
+        let msd = Infinity,
+          med = Infinity;
+        bestSegment.forEach((c, i) => {
+          const ds = haversineDist(first, c);
+          if (ds < msd) {
+            msd = ds;
+            si = i;
+          }
+          const de = haversineDist(last, c);
+          if (de < med) {
+            med = de;
+            ei = i;
+          }
+        });
+        const forward = si <= ei;
+        const a = forward ? si : ei;
+        const b = forward ? ei : si;
+        let route = bestSegment.slice(a, b + 1);
+        if (!forward) route.reverse();
+        if (route.length > 0) {
+          route[0] = first;
+          route[route.length - 1] = last;
+        }
+        // Densify the interpolated route so the train has many intermediate points for smooth dragging
+        wagonRoutes[s.id] = densifyRoute(route, 10000);
+      } else {
+        // Fallback: densify original route (though it's a straight line)
+        wagonRoutes[s.id] = densifyRoute(s.route, 10000);
+      }
+    });
+    setRailInterpolated(wagonRoutes);
+  }, [shipments, geoJsonLoaded]);
 
   useEffect(() => {
     const missing = shipments.filter(
@@ -291,6 +305,20 @@ export function FleetMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
+
+      {/* Draw all railway segments from loaded GeoJSON */}
+      {railSegments.map((seg, idx) => (
+        <Polyline
+          key={`rail-${idx}`}
+          positions={seg}
+          pathOptions={{
+            color: "#8b5cf6",
+            weight: 1.8,
+            opacity: 0.55,
+            dashArray: "8 6",
+          }}
+        />
+      ))}
       {shipments.map((s) => {
         const effectiveRoute =
           s.type === "wagon"
@@ -357,10 +385,17 @@ export function FleetMap({
                 const { lat, lng } = marker.getLatLng();
                 const pt: LatLng = [lat, lng];
                 if (s.type === "wagon") {
-                  // For wagons: snap to railway track
+                  // For wagons: snap to railway track and calculate progress along GeoJSON route
                   const snap = snapToRailway(pt);
                   marker.setLatLng(snap);
-                  onDragEnd(s.id, snap);
+                  // Calculate progress along the GeoJSON-interpolated route
+                  const route = railInterpolated[s.id];
+                  if (route && route.length >= 2) {
+                    const snapResult = nearestOnRoute(route, snap);
+                    onDragEnd(s.id, snapResult.pos, snapResult.t);
+                  } else {
+                    onDragEnd(s.id, snap);
+                  }
                 } else {
                   // For trucks: snap to road route
                   const path = s.roadRoute ?? roadRoutes[s.id] ?? s.route;
