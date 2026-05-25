@@ -95,10 +95,7 @@ function densifyRoute(route: LatLng[], maxIntervalMeters: number = 10000): LatLn
     const steps = Math.ceil(segLen / maxIntervalMeters);
     for (let s = 1; s <= steps; s++) {
       const frac = s / steps;
-      result.push([
-        a[0] + (b[0] - a[0]) * frac,
-        a[1] + (b[1] - a[1]) * frac,
-      ] as LatLng);
+      result.push([a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac] as LatLng);
     }
   }
   return result;
@@ -198,7 +195,7 @@ export function FleetMap({
             });
           }
         });
-                // Densify raw GeoJSON segments so dragging has many snap points (~10km spacing)
+        // Densify raw GeoJSON segments so dragging has many snap points (~10km spacing)
         const densifiedSegments = segments.map((seg) => densifyRoute(seg, 10000));
         railSegmentsRef.current = densifiedSegments;
         // Interpolate wagon shipment routes along the railway
@@ -248,7 +245,7 @@ export function FleetMap({
               route[0] = first;
               route[route.length - 1] = last;
             }
-                        // Densify the interpolated route so the train follows many intermediate points
+            // Densify the interpolated route so the train has many intermediate points for smooth dragging
             wagonRoutes[s.id] = densifyRoute(route, 10000);
           } else {
             wagonRoutes[s.id] = densifyRoute(s.route, 10000);
