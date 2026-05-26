@@ -286,6 +286,17 @@ function DriversPage() {
         "Энэхүү PDF-д таны системд нэвтрэх ашиглагчийн мэдээлэл, имэйл, нууц үг болон жолоочийн мэдээлэл багтсан болно.",
     });
 
+    window.alert(
+      `✅ Шинэ жолооч амжилттай үүсгэгдлээ!\n\n` +
+        `📋 Нэр: ${form.name}\n` +
+        `📧 И-мэйл: ${accountEmail}\n` +
+        `🔑 Нууц үг: ${accountPassword}\n` +
+        `📞 Утас: ${form.phone || "Байхгүй"}\n` +
+        `🚚 Төрөл: ${form.type === "wagon" ? "Вагон" : "Машин"}\n` +
+        `🆔 ID: ${form.vehicleId || form.plateNumber || "Байхгүй"}\n\n` +
+        `📄 Мэдээллийн PDF файл татагдсан.`,
+    );
+
     setCreatingAccount(false);
     setAccountCreated(true);
     setFormOpen(false);

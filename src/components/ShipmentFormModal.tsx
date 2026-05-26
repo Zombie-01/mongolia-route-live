@@ -476,7 +476,14 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                   <Field label="Илгээгч">
                     <select
                       value={form.shipper}
-                      onChange={(e) => setForm({ ...form, shipper: e.target.value })}
+                      onChange={(e) => {
+                        const selected = customers.find((c) => c.name === e.target.value);
+                        setForm({
+                          ...form,
+                          shipper: e.target.value,
+                          shipperId: selected?.id ?? undefined,
+                        });
+                      }}
                       className="inp"
                     >
                       <option value="">-- Сонгох эсвэл оруулах --</option>
@@ -491,7 +498,14 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                   <Field label="Хүлээн авагч">
                     <select
                       value={form.consignee}
-                      onChange={(e) => setForm({ ...form, consignee: e.target.value })}
+                      onChange={(e) => {
+                        const selected = customers.find((c) => c.name === e.target.value);
+                        setForm({
+                          ...form,
+                          consignee: e.target.value,
+                          receiverId: selected?.id ?? undefined,
+                        });
+                      }}
                       className="inp"
                     >
                       <option value="">-- Сонгох эсвэл оруулах --</option>

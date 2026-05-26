@@ -129,6 +129,19 @@ function CustomersPage() {
           notes:
             "Энэхүү PDF-д харилцагчийн системд нэвтрэх мэдээлэл болон холбоо барих мэдээлэл багтсан болно.",
         });
+
+        setTimeout(() => {
+          window.alert(
+            `✅ Шинэ харилцагч амжилттай үүсгэгдлээ!\n\n` +
+              `📋 Нэр: ${variables.customer.name}\n` +
+              `📧 И-мэйл: ${variables.customer.email || "Байхгүй"}\n` +
+              `🔑 Нууц үг: ${variables.password}\n` +
+              `📞 Утас: ${variables.customer.phone || "Байхгүй"}\n` +
+              `📍 Хаяг: ${variables.customer.address || "Байхгүй"}\n` +
+              `🏢 Өртөө: ${stations.find((s) => s.id === variables.customer.station_id)?.name || "Байхгүй"}\n\n` +
+              `📄 Мэдээллийн PDF файл татагдсан.`,
+          );
+        }, 500);
       }
 
       setFormOpen(false);
