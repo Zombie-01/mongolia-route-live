@@ -211,9 +211,6 @@ export function ShipmentDetailModal({
                           <div className="text-sm font-semibold">
                             #{i + 1} · {d.location}
                           </div>
-
-
-
                                                     <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                             {d.position[0].toFixed(4)}°N, {d.position[1].toFixed(4)}°E · ETA {d.eta}
                           </div>

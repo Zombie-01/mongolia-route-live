@@ -214,10 +214,39 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     }));
   };
 
+  // Status өөрчлөгдөхөд position-ийг шинэчлэх
+  const handleStatusChange = (newStatus: ShipmentStatus) => {
+    if (!computed) return;
+    let newPosition = form.position;
+    // Шинэ хүргэлтэд (initial === undefined) status өөрчлөгдөхөд зөв байрлалд тохируулах
+    if (!initial) {
+      if (newStatus === "empty") {
+        newPosition = [47.9184, 106.9177]; // Улаанбаатар
+      } else if (newStatus === "loading" || newStatus === "in_transit") {
+        newPosition = computed.route[0]; // ачих цэг
+      }
+    }
+    setForm((f) => ({ ...f, status: newStatus, position: newPosition }));
+  };
+
   const handleSave = () => {
     if (!computed || !originStation || !destStation) return;
 
     const total = computed.total;
+    // Байршлыг тодорхойлох:
+    // - Засах (initial) үед: одоогийн байршлыг хадгалах
+    // - Шинэ "empty" хүргэлтэд: жолоочын байрлал тодорхойгүй бол Улаанбаатар (47.9184, 106.9177)
+    //   дараа нь GPS асахад (startRealGps) бодит байршилд шилжинэ.
+    // - Шинэ "loading" ба "in_transit": ачих цэгээс эхлэх (origin station)
+    let startPosition: LatLng;
+    if (initial) {
+      startPosition = form.position;
+    } else if (form.status === "empty") {
+      startPosition = [47.9184, 106.9177]; // Улаанбаатар
+    } else {
+      startPosition = computed.route[0]; // ачих цэг
+    }
+
     const finalShipment: Shipment = {
       ...form,
       origin: originName,
@@ -225,13 +254,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       route: computed.route,
       roadRoute: undefined,
       eta: computed.eta,
-      // "Хоосон" (empty) хүргэлтэд анхны байршил Улаанбаатарт харагдана.
-      // Жолооч GPS асаахад (startRealGps) үед бодис байршилд шилжинэ.
-      position: initial
-        ? form.position
-        : form.status === "empty"
-          ? form.position
-          : computed.route[0],
+      position: startPosition,
       totalWeight: `${total} тн`,
       dropoffs: form.dropoffs.map((d) => ({
         ...d,
@@ -321,9 +344,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                   <Field label="Төлөв">
                     <select
                       value={form.status}
-                      onChange={(e) =>
-                        setForm({ ...form, status: e.target.value as ShipmentStatus })
-                      }
+                      onChange={(e) => handleStatusChange(e.target.value as ShipmentStatus)}
                       className="inp"
                     >
                       <option value="empty">Хоосон (авах)</option>

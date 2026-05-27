@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
@@ -90,6 +90,8 @@ function DriverPage() {
     name,
     loading,
     shipments,
+    drivers: allDrivers,
+    userId: currentUserId,
     setStatus,
     sharingIds,
     setGpsOnline,
@@ -112,7 +114,21 @@ function DriverPage() {
 
   if (loading || !role) return null;
 
-  const myShipments = name ? shipments.filter((s) => s.driver === name) : [];
+  // Жолоочийн хүргэлтүүдийг шүүхдээ:
+  // 1. Эхлээд userId-ээр тохирох жолоочийг олох (drivers хүснэгтээс)
+  // 2. Тэр жолоочийн нэрээр хүргэлтүүдийг шүүх
+  // Энэ нь жолоочийн profile-ийн display_name нь driver-ийн name-тай таарахгүй тохиолдолд ч зөв ажиллана.
+  const matchedDriverName = useMemo(() => {
+    if (currentUserId && allDrivers.length > 0) {
+      const driver = allDrivers.find((d) => d.userId === currentUserId);
+      if (driver) return driver.name;
+    }
+    return name;
+  }, [currentUserId, allDrivers, name]);
+
+  const myShipments = matchedDriverName
+    ? shipments.filter((s) => s.driver === matchedDriverName)
+    : [];
   const visibleShipments = showDelivered
     ? myShipments
     : myShipments.filter((s) => s.status !== "delivered");
@@ -276,39 +292,6 @@ function DriverPage() {
               </div>
             )}
 
-            {/* Pickup info for empty status */}
-            {current.status === "empty" && (
-              <div className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs">
-                <div className="flex items-center gap-2 text-warning font-medium mb-1">
-                  🟡 Хоосон — Авах цэг рүү явж байна
-                </div>
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <span>📍 Одоо:</span>
-                  <span className="tabular-nums">
-                    {current.position[0].toFixed(4)}, {current.position[1].toFixed(4)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                  <span>🏁 Авах цэг:</span>
-                  <span className="font-medium">{current.origin}</span>
-                </div>
-                {current.pickupRoute && current.pickupRoute.length >= 2 && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                    <span>📏 Зай:</span>
-                    <span className="tabular-nums">
-                      {Math.round(
-                        haversineDist(
-                          current.pickupRoute[0],
-                          current.pickupRoute[current.pickupRoute.length - 1],
-                        ) / 1000,
-                      )}{" "}
-                      км
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Loading info */}
             {current.status === "loading" && (
               <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-xs">
@@ -361,6 +344,60 @@ function DriverPage() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Pickup location - always show */}
+            <div className="mt-5">
+              <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+                Ачаа авах цэг
+              </div>
+              <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">📍 {current.origin}</span>
+                  {current.status === "empty" && (
+                    <span className="rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] text-warning">
+                      Авах цэг рүү явж байна
+                    </span>
+                  )}
+                  {current.status === "loading" && (
+                    <span className="rounded-full border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] text-blue-500">
+                      Ачиж байна
+                    </span>
+                  )}
+                  {current.status === "in_transit" && (
+                    <span className="rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5 text-[10px] text-accent">
+                      Ачсан
+                    </span>
+                  )}
+                </div>
+                {current.status === "empty" && (
+                  <>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-muted-foreground">
+                      <span>📍 Одоо:</span>
+                      <span className="tabular-nums">
+                        {current.position[0].toFixed(4)}, {current.position[1].toFixed(4)}
+                      </span>
+                    </div>
+                    {current.pickupRoute && current.pickupRoute.length >= 2 && (
+                      <div className="mt-1 text-muted-foreground tabular-nums">
+                        📏 Зай:{" "}
+                        {Math.round(
+                          haversineDist(
+                            current.pickupRoute[0],
+                            current.pickupRoute[current.pickupRoute.length - 1],
+                          ) / 1000,
+                        )}{" "}
+                        км
+                      </div>
+                    )}
+                  </>
+                )}
+                {current.cargoItems.length > 0 && (
+                  <div className="mt-1 text-muted-foreground">
+                    Ачаа: {current.cargoItems.map((c) => c.name).join(", ")}
+                  </div>
+                )}
               </div>
             </div>
 
