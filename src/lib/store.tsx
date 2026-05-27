@@ -43,6 +43,8 @@ export interface Driver {
   russiaPhone?: string;
   email?: string | null;
   userId?: string | null;
+  vehicleCertImage?: string;
+  trailerCertImage?: string;
 }
 
 export interface Station {
@@ -105,6 +107,7 @@ interface StoreState {
 
   stations: Station[];
   addStation: (s: Station) => void;
+  addStationLocal: (s: Station) => void;
   updateStation: (id: string, patch: Partial<Station>) => void;
   removeStation: (id: string) => void;
 }
@@ -147,6 +150,7 @@ function dbToShipment(row: Record<string, unknown>, stops: Record<string, unknow
     id: row.id as string,
     trackingId: row.tracking_id as string,
     cargo: row.cargo as string,
+    createdAt: (row.created_at as string) ?? undefined,
     origin: row.origin as string,
     destination: row.destination as string,
     driver: row.driver_name as string,
@@ -278,6 +282,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               ?.split(",")
               .map((plate) => plate.trim())
               .filter(Boolean) ?? [],
+          vehicleCertImage: (r.vehicle_cert_url as string | null | undefined) ?? "",
+          trailerCertImage: (r.trailer_cert_url as string | null | undefined) ?? "",
           email: (r.email as string | null) ?? null,
           userId: (r.user_id as string | null) ?? null,
         })),
@@ -409,9 +415,77 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             if (s.id !== id) return s;
             if (s.type === "wagon") return s; // wagons don't use GPS
 
+            const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
+
+            // Special handling for "empty" status: driver en route to pickup point
+            if (s.status === "empty") {
+              const pickupPoint = s.route[0]; // origin station
+              if (pickupPoint) {
+                const pickupRoute: LatLng[] = [gpsPos, pickupPoint];
+                const updated = {
+                  ...s,
+                  position: gpsPos,
+                  progress: 0, // main route progress stays 0 until loaded
+                  speed: kmh,
+                  gpsOnline: true,
+                  lastGpsAt: new Date().toISOString(),
+                  lastKnownPos: gpsPos,
+                  manualOverride: false,
+                  pickupRoute,
+                };
+
+                try {
+                  const last = gpsLastPersist.current.get(id) ?? 0;
+                  const now = Date.now();
+                  if (now - last > 5000) {
+                    gpsLastPersist.current.set(id, now);
+                    persistField(id, {
+                      position: gpsPos as unknown as Json,
+                      speed: kmh,
+                      last_gps_at: new Date().toISOString(),
+                      last_known_pos: gpsPos as unknown as Json,
+                    });
+                  }
+                } catch {}
+
+                return updated;
+              }
+            }
+
+            // "Loading" status: keep position at origin (pickup point), progress stays 0
+            if (s.status === "loading") {
+              const pickupPoint = s.route[0]; // origin station
+              const loadingPos = pickupPoint ?? gpsPos;
+              const updated = {
+                ...s,
+                position: loadingPos,
+                progress: 0, // still loading, no progress on main route
+                speed: 0,
+                gpsOnline: true,
+                lastGpsAt: new Date().toISOString(),
+                lastKnownPos: loadingPos,
+                manualOverride: false,
+              };
+
+              try {
+                const last = gpsLastPersist.current.get(id) ?? 0;
+                const now = Date.now();
+                if (now - last > 5000) {
+                  gpsLastPersist.current.set(id, now);
+                  persistField(id, {
+                    position: loadingPos as unknown as Json,
+                    speed: 0,
+                    last_gps_at: new Date().toISOString(),
+                    last_known_pos: loadingPos as unknown as Json,
+                  });
+                }
+              } catch {}
+
+              return updated;
+            }
+
             const path = s.roadRoute ?? s.route;
             const snap = nearestOnRoute(path, gpsPos);
-            const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
 
             const updated = {
               ...s,
@@ -504,6 +578,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           gpsOnline: false,
           lastKnownPos: s.position,
           speed: 0,
+          // Keep pickupRoute so driver can see their last known path if still empty
         };
       }),
     );
@@ -762,9 +837,54 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCustomerId(null);
   };
 
-  // ---------------- Shipment actions ----------------
-  const setStatus = (id: string, status: ShipmentStatus) => {
-    setShipments((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
+
+
+
+
+
+    // ---------------- Shipment actions ----------------
+    // Helper: check if a driver already has an active (non-delivered) shipment.
+    // Returns the conflicting shipment if found.
+    const driverHasActiveShipment = useCallback(
+      (driverName: string, excludeId?: string): Shipment | undefined => {
+        if (!driverName) return undefined;
+        return shipments.find(
+          (s) =>
+            s.driver === driverName &&
+            s.status !== "delivered" &&
+            s.id !== excludeId,
+        );
+      },
+      [shipments],
+    );
+
+    const setStatus = (id: string, status: ShipmentStatus) => {
+      setShipments((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        // When transitioning FROM "empty": clear pickupRoute, snap to origin point, reset progress
+        if (s.status === "empty" && status !== "empty") {
+          const originPos = s.route[0];
+          return {
+            ...s,
+            status,
+            pickupRoute: undefined,
+            position: originPos ?? s.position,
+            progress: 0,
+          };
+        }
+        // When transitioning FROM "loading" to "in_transit": reset progress to 0 (green bar starts fresh)
+        if (s.status === "loading" && status === "in_transit") {
+          return {
+            ...s,
+            status,
+            progress: 0,
+            position: s.route[0] ?? s.position,
+          };
+        }
+        return { ...s, status };
+      }),
+    );
     persistField(id, { status });
   };
 
@@ -969,6 +1089,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         trailer_plates: d.trailerPlates.join(", ") || null,
         profile_photo_url: d.profileImage || null,
         passport_photo_url: d.passportImage || null,
+        vehicle_cert_url: d.vehicleCertImage || null,
+        trailer_cert_url: d.trailerCertImage || null,
         email: d.email || null,
         user_id: d.userId || null,
       })
@@ -999,6 +1121,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       row.trailer_plates = patch.trailerPlates.join(", ") || null;
     if (patch.profileImage !== undefined) row.profile_photo_url = patch.profileImage;
     if (patch.passportImage !== undefined) row.passport_photo_url = patch.passportImage;
+    if (patch.vehicleCertImage !== undefined) row.vehicle_cert_url = patch.vehicleCertImage;
+    if (patch.trailerCertImage !== undefined) row.trailer_cert_url = patch.trailerCertImage;
     if (patch.email !== undefined) row.email = patch.email;
     if (patch.userId !== undefined) row.user_id = patch.userId;
     supabase
@@ -1033,6 +1157,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (data?.id)
           setStations((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
       });
+  };
+
+  // Only update local state, no DB insert (used when station already inserted in DB)
+  const addStationLocal = (s: Station) => {
+    setStations((prev) => {
+      // Avoid duplicates
+      if (prev.find((x) => x.id === s.id)) return prev;
+      return [...prev, s];
+    });
   };
 
   const updateStation = (id: string, patch: Partial<Station>) => {
@@ -1094,6 +1227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         removeDriver,
         stations,
         addStation,
+        addStationLocal,
         updateStation,
         removeStation,
       }}

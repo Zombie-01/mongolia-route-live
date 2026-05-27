@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import { MobileViewToggle } from "@/components/MobileViewToggle";
-import type { ShipmentStatus } from "@/lib/demo-data";
+import { haversineDist, type ShipmentStatus } from "@/lib/demo-data";
 
 const driverLocales = {
   mn: {
@@ -137,11 +137,27 @@ function DriverPage() {
   const gpsLive = realGpsActive.has(current.id);
   const gpsActive = !isWagon && gpsLive;
 
-  const statusBtns: { v: ShipmentStatus; label: string }[] = [
-    { v: "in_transit", label: t.inTransit },
-    { v: "stopped", label: t.stopped },
-    { v: "delivered", label: t.delivered },
-  ];
+  // Dynamic status buttons based on current status flow: empty -> loading -> in_transit
+  const getStatusButtons = (): { v: ShipmentStatus; label: string }[] => {
+    if (current.status === "empty") {
+      return [
+        { v: "loading", label: "⬆ Авах цэгт ирлээ" },
+        { v: "in_transit", label: t.inTransit },
+      ];
+    } else if (current.status === "loading") {
+      return [
+        { v: "in_transit", label: "✅ Ачиж дууслаа" },
+        { v: "empty", label: "⬅ Буцах" },
+      ];
+    }
+    return [
+      { v: "in_transit", label: t.inTransit },
+      { v: "stopped", label: t.stopped },
+      { v: "delivered", label: t.delivered },
+    ];
+  };
+
+  const statusBtns = getStatusButtons();
 
   const handleGpsToggle = () => {
     if (isWagon) return;
@@ -155,6 +171,19 @@ function DriverPage() {
     startRealGps(current.id);
     setGpsOnline(current.id, true);
   };
+
+  // Auto-start GPS for empty shipments to capture driver's real position
+  useEffect(() => {
+    const c = visibleShipments.find((s) => s.id === active) ?? visibleShipments[0];
+    if (!c || c.type === "wagon") return;
+    if (c.status === "empty" && !realGpsActive.has(c.id) && navigator.geolocation) {
+      const timer = setTimeout(() => {
+        startRealGps(c.id);
+        setGpsOnline(c.id, true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [active, visibleShipments.length]);
 
   return (
     <AppShell>
@@ -247,6 +276,48 @@ function DriverPage() {
               </div>
             )}
 
+            {/* Pickup info for empty status */}
+            {current.status === "empty" && (
+              <div className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs">
+                <div className="flex items-center gap-2 text-warning font-medium mb-1">
+                  🟡 Хоосон — Авах цэг рүү явж байна
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <span>📍 Одоо:</span>
+                  <span className="tabular-nums">
+                    {current.position[0].toFixed(4)}, {current.position[1].toFixed(4)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
+                  <span>🏁 Авах цэг:</span>
+                  <span className="font-medium">{current.origin}</span>
+                </div>
+                {current.pickupRoute && current.pickupRoute.length >= 2 && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
+                    <span>📏 Зай:</span>
+                    <span className="tabular-nums">
+                      {Math.round(
+                        haversineDist(
+                          current.pickupRoute[0],
+                          current.pickupRoute[current.pickupRoute.length - 1],
+                        ) / 1000,
+                      )}{" "}
+                      км
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Loading info */}
+            {current.status === "loading" && (
+              <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-xs">
+                <div className="flex items-center gap-2 text-blue-500 font-medium">
+                  🔵 Ачиж байна — {current.origin} дээр
+                </div>
+              </div>
+            )}
+
             <div className="mt-5 space-y-2 text-sm">
               <Row label={t.cargo} value={current.cargo} />
               <Row label={t.route} value={`${current.origin} → ${current.destination}`} />
@@ -293,19 +364,102 @@ function DriverPage() {
               </div>
             </div>
 
+            {/* Dropoff stops */}
+            {current.dropoffs.length > 0 && current.status !== "empty" && (
+              <div className="mt-5">
+                <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+                  Буулгах цэгүүд
+                </div>
+                <div className="space-y-2">
+                  {current.dropoffs.map((d, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-lg border p-3 text-xs ${
+                        d.status === "done"
+                          ? "border-accent/40 bg-accent/10"
+                          : "border-border bg-card/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          {d.status === "done" ? "✅" : `${i + 1}.`} {d.location}
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">ETA {d.eta}</span>
+                      </div>
+                      {d.contact && (
+                        <div className="mt-1 flex items-center gap-1 text-muted-foreground">
+                          <span>📞</span>
+                          <span>{d.contact}</span>
+                        </div>
+                      )}
+                      {d.note && (
+                        <div className="mt-0.5 text-muted-foreground italic">📝 {d.note}</div>
+                      )}
+                      {d.items.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {d.items.map((it, j) => (
+                            <span
+                              key={j}
+                              className="rounded-full border border-border bg-background/60 px-1.5 py-0.5 text-[10px]"
+                            >
+                              {it.name} {it.qty} {it.unit ?? "тн"}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setStatus(current.id, "in_transit")}
-                className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-              >
-                {t.startTrip}
-              </button>
-              <button
-                onClick={() => setStatus(current.id, "stopped")}
-                className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
-              >
-                {t.stopTrip}
-              </button>
+              {current.status === "empty" ? (
+                <>
+                  <button
+                    onClick={() => setStatus(current.id, "loading")}
+                    className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    ⬆ Авах цэгт ирлээ
+                  </button>
+                  <button
+                    onClick={() => setStatus(current.id, "stopped")}
+                    className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
+                  >
+                    ■ Зогсоох
+                  </button>
+                </>
+              ) : current.status === "loading" ? (
+                <>
+                  <button
+                    onClick={() => setStatus(current.id, "in_transit")}
+                    className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    ✅ Ачиж дууслаа
+                  </button>
+                  <button
+                    onClick={() => setStatus(current.id, "empty")}
+                    className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
+                  >
+                    ⬅ Буцах (хоосон)
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setStatus(current.id, "in_transit")}
+                    className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                  >
+                    {t.startTrip}
+                  </button>
+                  <button
+                    onClick={() => setStatus(current.id, "stopped")}
+                    className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
+                  >
+                    {t.stopTrip}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

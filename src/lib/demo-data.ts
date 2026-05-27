@@ -1,5 +1,11 @@
 export type LatLng = [number, number];
-export type ShipmentStatus = "in_transit" | "stopped" | "delivered" | "delayed";
+export type ShipmentStatus =
+  | "empty"
+  | "loading"
+  | "in_transit"
+  | "stopped"
+  | "delivered"
+  | "delayed";
 export type VehicleType = "truck" | "wagon";
 
 export interface CargoItem {
@@ -16,6 +22,7 @@ export interface Dropoff {
   eta: string;
   status: "pending" | "done";
   contact?: string;
+  note?: string;
 }
 
 export interface Shipment {
@@ -29,6 +36,7 @@ export interface Shipment {
   status: ShipmentStatus;
   route: LatLng[]; // raw waypoints (used as fallback)
   roadRoute?: LatLng[]; // detailed road geometry (filled from OSRM)
+  pickupRoute?: LatLng[]; // route from driver's current position to pickup point (origin), used when status=empty
   progress: number;
   speed: number;
   eta: string;
@@ -59,6 +67,7 @@ export interface Shipment {
   shipperId?: string;
   receiverId?: string;
   dropoffs: Dropoff[];
+  createdAt?: string;
 }
 
 const UB: LatLng = [47.9184, 106.9177];

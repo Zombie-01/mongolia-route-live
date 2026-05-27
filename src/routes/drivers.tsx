@@ -32,6 +32,8 @@ function emptyDriver(): Driver {
     russiaPhone: "",
     email: "",
     userId: undefined,
+    vehicleCertImage: "",
+    trailerCertImage: "",
   };
 }
 
@@ -59,6 +61,8 @@ function DriversPage() {
   const [accountCreated, setAccountCreated] = useState(false);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [profileFile, setProfileFile] = useState<File | null>(null);
+  const [vehicleCertFile, setVehicleCertFile] = useState<File | null>(null);
+  const [trailerCertFile, setTrailerCertFile] = useState<File | null>(null);
   const [detailDriver, setDetailDriver] = useState<Driver | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -109,6 +113,10 @@ function DriversPage() {
     setForm(emptyDriver());
     setAccountEmail("");
     setAccountPassword("");
+    setProfileFile(null);
+    setPassportFile(null);
+    setVehicleCertFile(null);
+    setTrailerCertFile(null);
     setAccountError(null);
     setAccountCreated(false);
     setFormOpen(true);
@@ -117,6 +125,10 @@ function DriversPage() {
   const openEdit = (d: Driver) => {
     setEditing(d);
     setForm({ ...d });
+    setProfileFile(null);
+    setPassportFile(null);
+    setVehicleCertFile(null);
+    setTrailerCertFile(null);
     setAccountEmail(d.email ?? "");
     setAccountPassword("");
     setAccountError(null);
@@ -134,6 +146,9 @@ function DriversPage() {
     if (editing) {
       let passportUrl = form.passportImage;
       let profileUrl = form.profileImage;
+      let vehicleCertUrl = form.vehicleCertImage;
+      let trailerCertUrl = form.trailerCertImage;
+
       if (passportFile) {
         const ext = passportFile.name.split(".").pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
@@ -166,10 +181,48 @@ function DriversPage() {
         profileUrl = urlData.publicUrl;
       }
 
+      if (vehicleCertFile) {
+        const ext = vehicleCertFile.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        const path = `vehicle-certs/${fileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("driver-documents")
+          .upload(path, vehicleCertFile, { upsert: true });
+        if (uploadError) {
+          setAccountError(
+            "Тээврийн хэрэгслийн гэрчилгээ байрлуулахад алдаа: " + uploadError.message,
+          );
+          return;
+        }
+        const { data: urlData } = await supabase.storage
+          .from("driver-documents")
+          .getPublicUrl(path);
+        vehicleCertUrl = urlData.publicUrl;
+      }
+
+      if (trailerCertFile) {
+        const ext = trailerCertFile.name.split(".").pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        const path = `trailer-certs/${fileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("driver-documents")
+          .upload(path, trailerCertFile, { upsert: true });
+        if (uploadError) {
+          setAccountError("Чиргүүлийн гэрчилгээ байрлуулахад алдаа: " + uploadError.message);
+          return;
+        }
+        const { data: urlData } = await supabase.storage
+          .from("driver-documents")
+          .getPublicUrl(path);
+        trailerCertUrl = urlData.publicUrl;
+      }
+
       const updated = {
         ...form,
         passportImage: passportUrl,
         profileImage: profileUrl,
+        vehicleCertImage: vehicleCertUrl,
+        trailerCertImage: trailerCertUrl,
         email: accountEmail || undefined,
       };
 
@@ -191,6 +244,8 @@ function DriversPage() {
       const updatePayload: any = { email: accountEmail || null };
       if (passportFile) updatePayload.passport_photo_url = passportUrl;
       if (profileFile) updatePayload.profile_photo_url = profileUrl;
+      if (vehicleCertFile) updatePayload.vehicle_cert_url = vehicleCertUrl;
+      if (trailerCertFile) updatePayload.trailer_cert_url = trailerCertUrl;
       if (Object.keys(updatePayload).length > 0) {
         await supabase.from("drivers").update(updatePayload).eq("id", editing.id);
       }
@@ -227,9 +282,12 @@ function DriversPage() {
 
     // Auth account created — now save driver record with user_id
     const driverWithUser = { ...form, email: accountEmail, userId: result.user_id };
-    // if user selected a passport file, upload it and attach URL
+    // if user selected files, upload them and attach URLs
     let passportUrl: string | undefined = form.passportImage;
     let profileUrl: string | undefined = form.profileImage;
+    let vehicleCertUrl: string | undefined = form.vehicleCertImage;
+    let trailerCertUrl: string | undefined = form.trailerCertImage;
+
     if (passportFile) {
       const ext = passportFile.name.split(".").pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
@@ -262,6 +320,41 @@ function DriversPage() {
       profileUrl = urlData.publicUrl;
       driverWithUser.profileImage = profileUrl;
     }
+
+    if (vehicleCertFile) {
+      const ext = vehicleCertFile.name.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+      const path = `vehicle-certs/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("driver-documents")
+        .upload(path, vehicleCertFile, { upsert: true });
+      if (uploadError) {
+        setCreatingAccount(false);
+        setAccountError("Тээврийн хэрэгслийн гэрчилгээ байрлуулахад алдаа: " + uploadError.message);
+        return;
+      }
+      const { data: urlData } = await supabase.storage.from("driver-documents").getPublicUrl(path);
+      vehicleCertUrl = urlData.publicUrl;
+      driverWithUser.vehicleCertImage = vehicleCertUrl;
+    }
+
+    if (trailerCertFile) {
+      const ext = trailerCertFile.name.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
+      const path = `trailer-certs/${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("driver-documents")
+        .upload(path, trailerCertFile, { upsert: true });
+      if (uploadError) {
+        setCreatingAccount(false);
+        setAccountError("Чиргүүлийн гэрчилгээ байрлуулахад алдаа: " + uploadError.message);
+        return;
+      }
+      const { data: urlData } = await supabase.storage.from("driver-documents").getPublicUrl(path);
+      trailerCertUrl = urlData.publicUrl;
+      driverWithUser.trailerCertImage = trailerCertUrl;
+    }
+
     await addDriver(driverWithUser);
 
     downloadUserInfoPdf({
@@ -281,6 +374,8 @@ function DriversPage() {
         { label: "Оролтын улс", value: form.country || "" },
         { label: "Passport зураг", value: passportUrl || "" },
         { label: "Профайл зураг", value: profileUrl || "" },
+        { label: "Тээврийн хэрэгслийн гэрчилгээ", value: vehicleCertUrl || "" },
+        { label: "Чиргүүлийн гэрчилгээ", value: trailerCertUrl || "" },
       ],
       notes:
         "Энэхүү PDF-д таны системд нэвтрэх ашиглагчийн мэдээлэл, имэйл, нууц үг болон жолоочийн мэдээлэл багтсан болно.",
@@ -750,6 +845,66 @@ function DriversPage() {
                       </div>
                     )}
                   </Field>
+                  <Field label="🚛 Тээврийн хэрэгслийн гэрчилгээ">
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setVehicleCertFile(f);
+                        if (f) setForm({ ...form, vehicleCertImage: "" });
+                      }}
+                      className="inp"
+                    />
+                    {form.vehicleCertImage && !vehicleCertFile && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Суулгасан файл:{" "}
+                        <a
+                          href={form.vehicleCertImage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary"
+                        >
+                          харах
+                        </a>
+                      </div>
+                    )}
+                    {vehicleCertFile && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Файл сонгогдсоно: {vehicleCertFile.name}
+                      </div>
+                    )}
+                  </Field>
+                  <Field label="🔗 Чиргүүлийн гэрчилгээ">
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        setTrailerCertFile(f);
+                        if (f) setForm({ ...form, trailerCertImage: "" });
+                      }}
+                      className="inp"
+                    />
+                    {form.trailerCertImage && !trailerCertFile && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Суулгасан файл:{" "}
+                        <a
+                          href={form.trailerCertImage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary"
+                        >
+                          харах
+                        </a>
+                      </div>
+                    )}
+                    {trailerCertFile && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Файл сонгогдсоно: {trailerCertFile.name}
+                      </div>
+                    )}
+                  </Field>
                   <Field label="Дансны дугаар">
                     <input
                       value={form.accountNumber || ""}
@@ -955,6 +1110,37 @@ function DriversPage() {
                     )}
                   </div>
                 </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      🚛 Тээврийн хэрэгслийн гэрчилгээ
+                    </div>
+                    {detailDriver.vehicleCertImage ? (
+                      <img
+                        src={detailDriver.vehicleCertImage}
+                        alt="Тээврийн хэрэгслийн гэрчилгээ"
+                        className="w-full max-w-sm rounded border border-border"
+                      />
+                    ) : (
+                      <div className="text-xs text-muted-foreground">Байхгүй</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      🔗 Чиргүүлийн гэрчилгээ
+                    </div>
+                    {detailDriver.trailerCertImage ? (
+                      <img
+                        src={detailDriver.trailerCertImage}
+                        alt="Чиргүүлийн гэрчилгээ"
+                        className="w-full max-w-sm rounded border border-border"
+                      />
+                    ) : (
+                      <div className="text-xs text-muted-foreground">Байхгүй</div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 border-t border-border p-3 sm:p-4">
@@ -985,6 +1171,28 @@ function DriversPage() {
                   className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
                 >
                   Паспор татах
+                </button>
+                <button
+                  onClick={() =>
+                    downloadImage(
+                      detailDriver.vehicleCertImage,
+                      `${detailDriver.name}_vehicle_cert.jpg`,
+                    )
+                  }
+                  className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
+                >
+                  🚛 Тээврийн гэрч. татах
+                </button>
+                <button
+                  onClick={() =>
+                    downloadImage(
+                      detailDriver.trailerCertImage,
+                      `${detailDriver.name}_trailer_cert.jpg`,
+                    )
+                  }
+                  className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
+                >
+                  🔗 Чиргүүлийн гэрч. татах
                 </button>
               </div>
             </motion.div>

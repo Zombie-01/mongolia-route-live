@@ -74,7 +74,13 @@ function CustomersPage() {
         }
         const { error } = await supabase
           .from("customers")
-          .update({ name: c.name, phone: c.phone, email: c.email, address: c.address })
+          .update({
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            address: c.address,
+            station_id: c.station_id,
+          })
           .eq("id", c.id);
         if (error) throw error;
       } else {
@@ -416,18 +422,23 @@ function CustomersPage() {
                   />
                 </Field>
                 <Field label="Өртөө">
-                  <select
-                    value={form.station_id || ""}
-                    onChange={(e) => setForm({ ...form, station_id: e.target.value || null })}
-                    className="inp"
-                  >
-                    <option value="">-- Өртөө сонгох --</option>
-                    {stations.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={form.station_id || ""}
+                      onChange={(e) => setForm({ ...form, station_id: e.target.value || null })}
+                      className="inp"
+                    >
+                      <option value="">-- Өртөө сонгох --</option>
+                      {stations.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <NewStationButton
+                      onCreated={(newStationId) => setForm({ ...form, station_id: newStationId })}
+                    />
+                  </div>
                 </Field>
                 <Field label="Хаяг">
                   <textarea
@@ -465,6 +476,135 @@ function CustomersPage() {
         )}
       </AnimatePresence>
     </AppShell>
+  );
+}
+
+function NewStationButton({ onCreated }: { onCreated: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { addStationLocal } = useStore();
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      setError("Өртөөний нэр оруулна уу");
+      return;
+    }
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      setError("Зөв координат (lat, lng) оруулна уу");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const { data, error: insertError } = await supabase
+        .from("stations")
+        .insert({
+          name: name.trim(),
+          latitude,
+          longitude,
+        })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+      if (data?.id) {
+        const newStation: Station = {
+          id: data.id,
+          name: name.trim(),
+          city: "",
+          position: [latitude, longitude],
+          type: "station",
+          contact: "",
+          active: true,
+        };
+        addStationLocal(newStation);
+        onCreated(data.id);
+        setOpen(false);
+        setName("");
+        setLat("");
+        setLng("");
+      }
+    } catch (err: any) {
+      setError(err.message || "Өртөө үүсгэхэд алдаа гарлаа");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="whitespace-nowrap rounded-lg border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs text-primary hover:bg-primary/10"
+        >
+          + Шинэ
+        </button>
+      ) : (
+        <div className="absolute right-0 top-0 z-50 w-72 rounded-xl border border-border bg-card p-4 shadow-xl">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Шинэ өртөө нэмэх
+          </div>
+          <div className="space-y-2">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="inp text-xs"
+              placeholder="Өртөөний нэр"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+                className="inp text-xs"
+                placeholder="Lat (ө.өр)"
+                type="number"
+                step="any"
+              />
+              <input
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+                className="inp text-xs"
+                placeholder="Lng (ур.өр)"
+                type="number"
+                step="any"
+              />
+            </div>
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive">
+                {error}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setError(null);
+                }}
+                className="flex-1 rounded-lg border border-border bg-card/60 px-2 py-1.5 text-xs text-muted-foreground"
+              >
+                Болих
+              </button>
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={saving}
+                className="flex-1 rounded-lg bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? "Үүсгэж байна..." : "Үүсгэх"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

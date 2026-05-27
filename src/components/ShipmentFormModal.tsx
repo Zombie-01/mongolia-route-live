@@ -42,11 +42,12 @@ function emptyShipment(stations: Station[]): Shipment {
     destination: dest.name,
     driver: "",
     vehicleId: "",
-    status: "in_transit",
+    status: "empty",
     route,
     progress: 0,
     speed: 0,
     eta: etaFromKm(km),
+    // "Улаанбаатараас эхэлж явна" - анхны байршил. GPS асах үед startRealGps-ээр шинэчлэгдэнэ.
     position: ub.position,
     type: "truck",
     country: "MN",
@@ -73,8 +74,8 @@ function emptyShipment(stations: Station[]): Shipment {
 }
 
 export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
-  const { stations } = useStore();
   const [mounted, setMounted] = useState(false);
+  const { stations, shipments } = useStore();
   useEffect(() => setMounted(true), []);
   const [form, setForm] = useState<Shipment>(() => initial ?? emptyShipment(stations));
   const [originName, setOriginName] = useState(
@@ -95,101 +96,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
     },
   });
 
-  function DriverSelect() {
-    const { drivers } = useStore();
-    const isWagon = form.type === "wagon";
-
-    // Only show truck drivers for truck shipments
-    const activeTruckDrivers = drivers.filter((d) => d.active);
-    const selectedDriver = drivers.find(
-      (d) => d.name === form.driver && d.plateNumber === form.plateNumber,
-    );
-
-    const handleDriverSelect = (driverId: string) => {
-      const d = drivers.find((x) => x.id === driverId);
-      if (!d) return;
-      setForm((f) => ({
-        ...f,
-        driver: d.name,
-        driverPhone: d.phone,
-        driverLicense: d.license,
-        driverExperience: `${d.experience} жил`,
-        driverRating: d.rating,
-        plateNumber: d.plateNumber,
-        vehicleId: d.vehicleId,
-        capacity: d.capacity,
-        type: d.type,
-        country: d.country,
-      }));
-    };
-
-    // Wagon: only contact number, no driver
-    if (isWagon) {
-      return (
-        <div className="space-y-3">
-          <Field label="Холбогдох дугаар" wide>
-            <input
-              value={form.driverPhone}
-              onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
-              className="inp"
-              placeholder="Бригадын холбогдох утас"
-            />
-          </Field>
-          <Field label="Бригадын дугаар / Вагон ID">
-            <input
-              value={form.vehicleId}
-              onChange={(e) =>
-                setForm({ ...form, vehicleId: e.target.value, plateNumber: e.target.value })
-              }
-              className="inp"
-              placeholder="ВАГОН-2204 / 4 вагон"
-            />
-          </Field>
-          <Field label="Даац">
-            <input
-              value={form.capacity}
-              onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-              className="inp"
-              placeholder="260 тн (4×65)"
-            />
-          </Field>
-        </div>
-      );
-    }
-
-    // Truck: driver dropdown
-    return (
-      <div className="space-y-3">
-        <Field label="Жолооч сонгох" wide>
-          <select
-            value={selectedDriver?.id ?? ""}
-            onChange={(e) => handleDriverSelect(e.target.value)}
-            className="inp"
-          >
-            <option value="">-- Жолооч сонгох --</option>
-            {activeTruckDrivers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name} · {d.plateNumber} · 🚚{" "}
-                {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {selectedDriver && (
-          <div className="rounded-lg border border-border bg-card/40 p-3 text-xs text-muted-foreground">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <span>Утас: {form.driverPhone}</span>
-              <span>Үнэмлэх: {form.driverLicense}</span>
-              <span>Туршлага: {form.driverExperience}</span>
-              <span>Дугаар: {form.plateNumber}</span>
-              <span>Даац: {form.capacity}</span>
-              <span>Үнэлгээ: ⭐ {form.driverRating.toFixed(1)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  // DriverSelect is defined as a proper component outside ShipmentFormModal
 
   useEffect(() => {
     if (!open) return;
@@ -309,6 +216,23 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
   const handleSave = () => {
     if (!computed || !originStation || !destStation) return;
+
+    // Validate driver uniqueness: check if driver already has another active shipment
+    if (form.driver && form.type !== "wagon") {
+      const activeShipment = shipments.find(
+        (s) =>
+          s.driver === form.driver &&
+          s.status !== "delivered" &&
+          (initial ? s.id !== initial.id : true),
+      );
+      if (activeShipment) {
+        alert(
+          `⚠️ "${form.driver}" жолооч "${activeShipment.trackingId}" хүргэлтэнд бүртгэлтэй байна!\n\nНэг жолооч нэг удаад зөвхөн 1 хүргэлтэнд бүртгэгдэх боломжтой.`,
+        );
+        return;
+      }
+    }
+
     const total = computed.total;
     const finalShipment: Shipment = {
       ...form,
@@ -317,7 +241,13 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
       route: computed.route,
       roadRoute: undefined,
       eta: computed.eta,
-      position: initial ? form.position : computed.route[0],
+      // "Хоосон" (empty) хүргэлтэд анхны байршил Улаанбаатарт харагдана.
+      // Жолооч GPS асаахад (startRealGps) үед бодис байршилд шилжинэ.
+      position: initial
+        ? form.position
+        : form.status === "empty"
+          ? form.position
+          : computed.route[0],
       totalWeight: `${total} тн`,
       dropoffs: form.dropoffs.map((d) => ({
         ...d,
@@ -337,8 +267,7 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
-          style={{ zIndex: 100000 }}
+          style={{ zIndex: 100000, cursor: "default" }}
           className="fixed inset-0 flex items-center justify-center bg-background/70 p-4 backdrop-blur"
         >
           <motion.div
@@ -413,6 +342,8 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                       }
                       className="inp"
                     >
+                      <option value="empty">Хоосон (авах)</option>
+                      <option value="loading">Ачиж байна</option>
                       <option value="in_transit">Замд</option>
                       <option value="stopped">Зогссон</option>
                       <option value="delayed">Хоцрол</option>
@@ -468,7 +399,12 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
               </Section>
 
               <Section title={form.type === "wagon" ? "Бригад / Холбогдох" : "Жолооч / Бригад"}>
-                <DriverSelect />
+                <DriverSelectInner
+                  form={form}
+                  setForm={setForm}
+                  initial={initial}
+                  editing={!!initial}
+                />
               </Section>
 
               <Section title="Талууд">
@@ -606,11 +542,21 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                             ))}
                           </select>
                         </Field>
-                        <Field label="Холбогдох">
+                        <Field label="Холбогдох утас">
                           <input
                             value={d.contact ?? ""}
                             onChange={(e) => updateDropoff(i, { contact: e.target.value })}
-                            placeholder="Утас, нэр"
+                            placeholder="Утасны дугаар"
+                            className="inp"
+                          />
+                        </Field>
+                      </div>
+                      <div className="mt-2">
+                        <Field label="Тэмдэглэл">
+                          <input
+                            value={d.note ?? ""}
+                            onChange={(e) => updateDropoff(i, { note: e.target.value })}
+                            placeholder="Буулгах цэгийн тэмдэглэл"
                             className="inp"
                           />
                         </Field>
@@ -694,6 +640,111 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
 
   if (typeof document !== "undefined" && mounted) return createPortal(content, document.body);
   return null;
+}
+
+function DriverSelectInner({
+  form,
+  setForm,
+  initial,
+  editing,
+}: {
+  form: Shipment;
+  setForm: React.Dispatch<React.SetStateAction<Shipment>>;
+  initial?: Shipment | null;
+  editing: boolean;
+}) {
+  const { drivers, shipments } = useStore();
+  const isWagon = form.type === "wagon";
+
+  // Only show truck drivers for truck shipments
+  const activeTruckDrivers = drivers.filter((d) => d.active);
+
+  // Нэг жолооч зөвхөн 1 удаагийн идэвхтэй хүргэлтэнд бүртгэгдэх боломжтой.
+  // "delivered" болон өөрийн одоогийн хүргэлтээс бусад идэвхтэй хүргэлттэй жолооч сонголтоос хасна.
+  const occupiedDriverNames = new Set(
+    shipments
+      .filter(
+        (s) => s.driver && s.status !== "delivered" && (editing ? s.id !== initial?.id : true),
+      )
+      .map((s) => s.driver),
+  );
+  const availableDrivers = activeTruckDrivers.filter((d) => !occupiedDriverNames.has(d.name));
+
+  const selectedDriver = drivers.find(
+    (d) => d.name === form.driver && d.plateNumber === form.plateNumber,
+  );
+
+  // Wagon: only contact number, no driver
+  if (isWagon) {
+    return (
+      <div className="space-y-3">
+        <Field label="Холбогдох дугаар" wide>
+          <input
+            value={form.driverPhone}
+            onChange={(e) => setForm({ ...form, driverPhone: e.target.value })}
+            className="inp"
+            placeholder="Бригадын холбогдох утас"
+          />
+        </Field>
+        <Field label="Бригадын дугаар / Вагон ID">
+          <input
+            value={form.vehicleId}
+            onChange={(e) =>
+              setForm({ ...form, vehicleId: e.target.value, plateNumber: e.target.value })
+            }
+            className="inp"
+            placeholder="ВАГОН-2204 / 4 вагон"
+          />
+        </Field>
+        <Field label="Даац">
+          <input
+            value={form.capacity}
+            onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+            className="inp"
+            placeholder="260 тн (4×65)"
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  // Truck: driver dropdown
+  return (
+    <div className="space-y-3">
+      {driverWarning && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {driverWarning}
+        </div>
+      )}
+      <Field label="Жолооч сонгох" wide>
+        <select
+          value={selectedDriver?.id ?? ""}
+          onChange={(e) => handleDriverSelect(e.target.value)}
+          className="inp"
+        >
+          <option value="">-- Жолооч сонгох --</option>
+          {activeTruckDrivers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name} · {d.plateNumber} · 🚚{" "}
+              {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {selectedDriver && (
+        <div className="rounded-lg border border-border bg-card/40 p-3 text-xs text-muted-foreground">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <span>Утас: {form.driverPhone}</span>
+            <span>Үнэмлэх: {form.driverLicense}</span>
+            <span>Туршлага: {form.driverExperience}</span>
+            <span>Дугаар: {form.plateNumber}</span>
+            <span>Даац: {form.capacity}</span>
+            <span>Үнэлгээ: ⭐ {form.driverRating.toFixed(1)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

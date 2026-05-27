@@ -29,40 +29,91 @@ function makeTruckIcon(s: Shipment, draggable: boolean) {
       ? "stopped"
       : s.status === "delivered"
         ? "delivered"
-        : "";
+        : s.status === "empty"
+          ? "empty"
+          : s.status === "loading"
+            ? "loading"
+            : "";
   const emoji = s.type === "wagon" ? "🚆" : "🚚";
   const flag = s.country === "RU" ? "🇷🇺" : s.country === "CN" ? "🇨🇳" : "";
   const label = s.vehicleId || s.plateNumber || s.trackingId || "";
   const badge =
     s.type === "wagon"
       ? `<span style="position:absolute;top:-8px;left:-4px;background:#f59e0b;color:#000;font-size:8px;padding:1px 4px;border-radius:6px;font-weight:700">EST</span>`
-      : offline
-        ? `<span style="position:absolute;top:-8px;left:-4px;background:#ef4444;color:#fff;font-size:8px;padding:1px 4px;border-radius:6px;font-weight:700">OFF</span>`
-        : "";
+      : s.status === "empty"
+        ? `<span style="position:absolute;top:-8px;left:-4px;background:#f59e0b;color:#000;font-size:8px;padding:1px 4px;border-radius:6px;font-weight:700">ХООСОН</span>`
+        : s.status === "loading"
+          ? `<span style="position:absolute;top:-8px;left:-4px;background:#3b82f6;color:#fff;font-size:8px;padding:1px 4px;border-radius:6px;font-weight:700">АЧАХ</span>`
+          : offline
+            ? `<span style="position:absolute;top:-8px;left:-4px;background:#ef4444;color:#fff;font-size:8px;padding:1px 4px;border-radius:6px;font-weight:700">OFF</span>`
+            : "";
   const ring = draggable
     ? "outline:2px dashed rgba(59,130,246,.7);outline-offset:3px;cursor:grab;"
     : "";
-  // glow: green when online, red when offline (wagons get no glow)
+  // glow
   const online = s.type !== "wagon" && s.gpsOnline !== false;
   const glowStyle =
     s.type === "wagon"
       ? ""
-      : online
-        ? "box-shadow:0 0 10px rgba(16,185,129,.9);"
-        : "box-shadow:0 0 10px rgba(239,68,68,.9);";
+      : s.status === "empty"
+        ? "box-shadow:0 0 12px rgba(245,158,11,.9);"
+        : s.status === "loading"
+          ? "box-shadow:0 0 12px rgba(59,130,246,.9);"
+          : online
+            ? "box-shadow:0 0 10px rgba(16,185,129,.9);"
+            : "box-shadow:0 0 10px rgba(239,68,68,.9);";
   const labelHtml = label
     ? `<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);min-width:28px;max-width:64px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;padding:1px 4px;background:rgba(0,0,0,.75);color:#fff;font-size:10px;line-height:1;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.25)">${label}</div>`
     : "";
 
-  return L.divIcon({
-    className: "",
-    iconSize: [40, 44],
-    iconAnchor: [20, 18],
-    html: `<div class="truck-marker ${cls}" style="${ring}${glowStyle}">${emoji}${
+  // Empty truck SVG with yellow wheels for "хоосон" status
+  const emptyTruckHtml = `<svg viewBox="0 0 40 34" width="40" height="34" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="8" width="24" height="14" rx="2" fill="#64748b" stroke="#475569" stroke-width="1"/>
+    <rect x="2" y="6" width="24" height="4" rx="1" fill="#94a3b8" stroke="#64748b" stroke-width="0.8"/>
+    <rect x="26" y="10" width="12" height="12" rx="1" fill="#64748b" stroke="#475569" stroke-width="1"/>
+    <line x1="6" y1="12" x2="22" y2="12" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2"/>
+    <line x1="6" y1="16" x2="22" y2="16" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2"/>
+    <line x1="6" y1="20" x2="22" y2="20" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2 2"/>
+    <circle cx="10" cy="24" r="5" fill="#f59e0b" stroke="#d97706" stroke-width="1"/>
+    <circle cx="10" cy="24" r="2" fill="#fef3c7"/>
+    <circle cx="30" cy="24" r="5" fill="#f59e0b" stroke="#d97706" stroke-width="1"/>
+    <circle cx="30" cy="24" r="2" fill="#fef3c7"/>
+  </svg>`;
+
+  // Loading SVG with cargo boxes and arrow for "ачих" status
+  const loadingTruckHtml = `<svg viewBox="0 0 40 34" width="40" height="34" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="8" width="24" height="14" rx="2" fill="#64748b" stroke="#475569" stroke-width="1"/>
+    <rect x="2" y="6" width="24" height="4" rx="1" fill="#94a3b8" stroke="#64748b" stroke-width="0.8"/>
+    <rect x="26" y="10" width="12" height="12" rx="1" fill="#64748b" stroke="#475569" stroke-width="1"/>
+    <rect x="6" y="11" width="6" height="6" rx="1" fill="#fbbf24" stroke="#f59e0b" stroke-width="0.8"/>
+    <rect x="13" y="9" width="6" height="8" rx="1" fill="#f59e0b" stroke="#d97706" stroke-width="0.8"/>
+    <polygon points="18,4 14,8 22,8" fill="#3b82f6"/>
+    <circle cx="10" cy="24" r="5" fill="#475569" stroke="#334155" stroke-width="1"/>
+    <circle cx="10" cy="24" r="2" fill="#94a3b8"/>
+    <circle cx="30" cy="24" r="5" fill="#475569" stroke="#334155" stroke-width="1"/>
+    <circle cx="30" cy="24" r="2" fill="#94a3b8"/>
+  </svg>`;
+
+  // Determine inner content based on status
+  const isTruckCustom = s.status === "empty" || s.status === "loading";
+  let innerContent: string;
+  if (s.status === "empty" && s.type !== "wagon") {
+    innerContent = emptyTruckHtml;
+  } else if (s.status === "loading" && s.type !== "wagon") {
+    innerContent = loadingTruckHtml;
+  } else {
+    innerContent = `${emoji}${
       flag
         ? `<span style="position:absolute;bottom:-4px;right:-6px;font-size:12px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">${flag}</span>`
         : ""
-    }${badge}${labelHtml}</div>`,
+    }`;
+  }
+
+  return L.divIcon({
+    className: "",
+    iconSize: isTruckCustom ? [40, 34] : [40, 44],
+    iconAnchor: isTruckCustom ? [20, 26] : [20, 18],
+    html: `<div class="truck-marker ${cls}" style="${ring}${glowStyle}">${innerContent}${badge}${labelHtml}</div>`,
   });
 }
 
@@ -320,10 +371,46 @@ export function FleetMap({
         />
       ))}
       {shipments.map((s) => {
+        const isTruck = s.type !== "wagon";
         const effectiveRoute =
           s.type === "wagon"
             ? (railInterpolated[s.id] ?? s.route)
             : (s.roadRoute ?? roadRoutes[s.id] ?? s.route);
+        const isFocus = focusId === s.id;
+        const mainOpacity = isFocus ? 1 : focusId ? 0.25 : 0.85;
+
+        // For "empty" status with a pickup route, draw two segments:
+        // 1) Driver → pickup point (yellow, dashed)
+        // 2) Pickup point → destination (green, dimmed - not yet active)
+        if (s.status === "empty" && s.pickupRoute && s.pickupRoute.length >= 2) {
+          const pickupEnd = s.pickupRoute[s.pickupRoute.length - 1];
+          return (
+            <>
+              {/* Driver → Pickup point: solid yellow */}
+              <Polyline
+                key={`pu-${s.id}`}
+                positions={s.pickupRoute}
+                pathOptions={{
+                  color: "#f59e0b",
+                  weight: focusId === s.id ? 4 : 3,
+                  opacity: mainOpacity,
+                }}
+              />
+              {/* Pickup point → Destination: dimmed green/dashed */}
+              <Polyline
+                key={`r-${s.id}`}
+                positions={effectiveRoute}
+                pathOptions={{
+                  color: "#10b981",
+                  weight: focusId === s.id ? 3 : 2,
+                  opacity: mainOpacity * 0.5,
+                  dashArray: "6 6",
+                }}
+              />
+            </>
+          );
+        }
+
         return (
           <Polyline
             key={`r-${s.id}`}
@@ -334,9 +421,13 @@ export function FleetMap({
                   ? "#f59e0b"
                   : s.status === "delivered"
                     ? "#6366f1"
-                    : "#10b981",
+                    : s.status === "empty"
+                      ? "#f59e0b"
+                      : s.status === "loading"
+                        ? "#3b82f6"
+                        : "#10b981",
               weight: focusId === s.id ? 4 : 2.5,
-              opacity: focusId && focusId !== s.id ? 0.25 : 0.85,
+              opacity: isFocus ? 0.85 : focusId ? 0.25 : 0.85,
               dashArray: s.status === "delivered" ? "6 8" : undefined,
             }}
           />

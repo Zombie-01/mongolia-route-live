@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore } from "@/lib/store";
+import { useStore, type Driver } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import { MobileViewToggle } from "@/components/MobileViewToggle";
@@ -96,6 +96,14 @@ function TrackPage() {
   const [language, setLanguage] = useState<"mn" | "ru">("mn");
   const t = trackLocales[language];
 
+  // Filter state
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterDriver, setFilterDriver] = useState("");
+  const [filterTrackingIdLocal, setFilterTrackingIdLocal] = useState("");
+
+  const { drivers } = useStore();
+
   useEffect(() => {
     if (!role) nav({ to: "/" });
   }, [role, nav]);
@@ -106,13 +114,50 @@ function TrackPage() {
       : shipments;
   const typeFilteredShipments =
     mode === "all"
-      ? visibleShipments
+      ? visibleShipments.filter((s) => {
+          // If location is missing or default, show as starting from UB
+          if (!s.position || (s.position[0] === 0 && s.position[1] === 0)) {
+            return true;
+          }
+          return true;
+        })
       : visibleShipments.filter((s) =>
           mode === "truck" ? s.type === "truck" : s.type === "wagon",
         );
-  const filteredShipments = showDelivered
+  const baseFilteredShipments = showDelivered
     ? typeFilteredShipments
     : typeFilteredShipments.filter((s) => s.status !== "delivered");
+
+  // Apply advanced filters
+  const filteredShipments = baseFilteredShipments.filter((s) => {
+    // Date from filter
+    if (filterDateFrom && s.createdAt) {
+      const sDate = new Date(s.createdAt);
+      const fromDate = new Date(filterDateFrom);
+      if (sDate < fromDate) return false;
+    }
+    // Date to filter
+    if (filterDateTo && s.createdAt) {
+      const sDate = new Date(s.createdAt);
+      const toDate = new Date(filterDateTo);
+      toDate.setHours(23, 59, 59, 999);
+      if (sDate > toDate) return false;
+    }
+    // Driver filter
+    if (filterDriver) {
+      const matchDriver = drivers.find((d) => d.id === filterDriver);
+      if (matchDriver && s.driver !== matchDriver.name) {
+        return false;
+      }
+    }
+    // Tracking number filter
+    if (filterTrackingIdLocal) {
+      if (!s.trackingId.toLowerCase().includes(filterTrackingIdLocal.toLowerCase())) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const found = filteredShipments.find(
     (s) => s.trackingId.toLowerCase() === submitted.toLowerCase(),
@@ -259,6 +304,79 @@ function TrackPage() {
               ))}
             </div>
 
+            {/* Filter section */}
+            <div className="mt-3 border-t border-border pt-3">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Шүүлтүүр
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                    Эхлэх өдөр
+                  </div>
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                    className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                    Дуусах өдөр
+                  </div>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
+                    className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                  Жолооч
+                </div>
+                <select
+                  value={filterDriver}
+                  onChange={(e) => setFilterDriver(e.target.value)}
+                  className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                >
+                  <option value="">Бүгд</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-2">
+                <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                  Хүргэлтийн дугаар
+                </div>
+                <input
+                  type="text"
+                  value={filterTrackingIdLocal}
+                  onChange={(e) => setFilterTrackingIdLocal(e.target.value)}
+                  placeholder="MN-..."
+                  className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                />
+              </div>
+              {(filterDateFrom || filterDateTo || filterDriver || filterTrackingIdLocal) && (
+                <button
+                  onClick={() => {
+                    setFilterDateFrom("");
+                    setFilterDateTo("");
+                    setFilterDriver("");
+                    setFilterTrackingIdLocal("");
+                  }}
+                  className="mt-2 w-full rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive hover:bg-destructive/20"
+                >
+                  ✕ Шүүлтүүр арилгах
+                </button>
+              )}
+            </div>
+
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -296,11 +414,15 @@ function TrackPage() {
                     <div className="rounded-full border border-primary/30 bg-primary/15 px-2.5 py-1 text-[11px] text-primary">
                       {found.status === "delivered"
                         ? t.delivered
-                        : found.status === "stopped"
-                          ? t.stopped
-                          : found.status === "delayed"
-                            ? t.delayed
-                            : t.inTransitState}
+                        : found.status === "empty"
+                          ? "Хоосон (авах)"
+                          : found.status === "loading"
+                            ? "Ачиж байна"
+                            : found.status === "stopped"
+                              ? t.stopped
+                              : found.status === "delayed"
+                                ? t.delayed
+                                : t.inTransitState}
                     </div>
                   </div>
 
@@ -336,7 +458,17 @@ function TrackPage() {
                     <Stat label={t.speed} value={`${found.speed} км/ц`} />
                     <Stat
                       label={t.status}
-                      value={found.status === "in_transit" ? t.inTransitState : t.stopped}
+                      value={
+                        found.status === "empty"
+                          ? "Хоосон (авах)"
+                          : found.status === "loading"
+                            ? "Ачиж байна"
+                            : found.status === "in_transit"
+                              ? t.inTransitState
+                              : found.status === "delivered"
+                                ? t.delivered
+                                : t.stopped
+                      }
                     />
                   </div>
 

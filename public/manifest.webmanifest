@@ -1,7 +1,7 @@
 {
-  "name": "ACHAA.live — Монголын ачаа тээврийн хяналт",
-  "short_name": "ACHAA",
-  "description": "Монголын ачаа тээврийн хяналт ба хяналтын систем.",
+  "name": "Пример Агро ХХК",
+  "short_name": "Пример Агро ХХК",
+  "description": "Пример Агро монголын ачаа тээврийн хяналт ба хяналтын систем.",
   "start_url": "/?utm_source=homescreen",
   "display": "standalone",
   "scope": "/",

@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+эрхтэй байнаimport { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Shipment } from "@/lib/demo-data";
 
 const statusLabel: Record<Shipment["status"], string> = {
+  empty: "Хоосон (авах)",
+  loading: "Ачиж байна",
   in_transit: "Замд",
   stopped: "Зогссон",
   delayed: "Хоцрол",
@@ -10,6 +12,8 @@ const statusLabel: Record<Shipment["status"], string> = {
 };
 
 const statusCls: Record<Shipment["status"], string> = {
+  empty: "bg-warning/15 text-warning border-warning/30",
+  loading: "bg-blue-500/15 text-blue-500 border-blue-500/30",
   in_transit: "bg-primary/15 text-primary border-primary/30",
   stopped: "bg-warning/15 text-warning border-warning/30",
   delayed: "bg-destructive/15 text-destructive border-destructive/40",
@@ -31,8 +35,14 @@ interface Props {
   onMarkStopDone?: (shipmentId: string, stopSeq: number) => void;
 }
 
-export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDelete, onMarkStopDone }: Props) {
-
+export function ShipmentDetailModal({
+  shipment,
+  onClose,
+  isAdmin,
+  onEdit,
+  onDelete,
+  onMarkStopDone,
+}: Props) {
   return (
     <AnimatePresence>
       {shipment && (
@@ -70,7 +80,9 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${statusCls[shipment.status]}`}>
+                <span
+                  className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] ${statusCls[shipment.status]}`}
+                >
                   {statusLabel[shipment.status]}
                 </span>
                 {isAdmin && onEdit && (
@@ -108,7 +120,9 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
               <div>
                 <div className="mb-1 flex justify-between text-xs text-muted-foreground">
                   <span>{shipment.origin}</span>
-                  <span className="tabular-nums">{Math.round(shipment.progress * 100)}% · ETA {shipment.eta}</span>
+                  <span className="tabular-nums">
+                    {Math.round(shipment.progress * 100)}% · ETA {shipment.eta}
+                  </span>
                   <span>{shipment.destination}</span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -174,8 +188,12 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                       {shipment.cargoItems.map((c, i) => (
                         <tr key={i} className="border-t border-border">
                           <td className="px-3 py-2 font-medium">{c.name}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{c.qty} {c.unit ?? "тн"}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">{c.note ?? "—"}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {c.qty} {c.unit ?? "тн"}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {c.note ?? "—"}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -196,8 +214,6 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                           <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                             {d.position[0].toFixed(4)}°N, {d.position[1].toFixed(4)}°E · ETA {d.eta}
                           </div>
-                          {d.contact && (
-                            <div className="mt-0.5 text-[11px] text-muted-foreground">Холбогдох: {d.contact}</div>
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -222,9 +238,14 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                       </div>
                       <ul className="mt-2 space-y-0.5 text-xs">
                         {d.items.map((it, j) => (
-                          <li key={j} className="flex justify-between border-t border-border/60 py-1">
+                          <li
+                            key={j}
+                            className="flex justify-between border-t border-border/60 py-1"
+                          >
                             <span className="text-muted-foreground">{it.name}</span>
-                            <span className="font-medium tabular-nums">{it.qty} {it.unit ?? "тн"}</span>
+                            <span className="font-medium tabular-nums">
+                              {it.qty} {it.unit ?? "тн"}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -253,7 +274,9 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
                     <div className="text-[11px] text-muted-foreground">
                       Газрын зураг дээр маркерыг чирж замын дагуу байршил шинэчилнэ.
                       {shipment.type === "wagon" && " Вагон — цагаар тооцоологдоно, GPS байхгүй."}
-                      {shipment.type !== "wagon" && shipment.gpsOnline === false && " GPS тасарсан — сүүлийн байршил дээр зогссон."}
+                      {shipment.type !== "wagon" &&
+                        shipment.gpsOnline === false &&
+                        " GPS тасарсан — сүүлийн байршил дээр зогссон."}
                     </div>
                   </div>
                 </Section>
@@ -269,7 +292,9 @@ export function ShipmentDetailModal({ shipment, onClose, isAdmin, onEdit, onDele
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       {children}
     </div>
   );
