@@ -837,29 +837,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCustomerId(null);
   };
 
+  // ---------------- Shipment actions ----------------
+  // Helper: check if a driver already has an active (non-delivered) shipment.
+  // Returns the conflicting shipment if found.
+  const driverHasActiveShipment = useCallback(
+    (driverName: string, excludeId?: string): Shipment | undefined => {
+      if (!driverName) return undefined;
+      return shipments.find(
+        (s) => s.driver === driverName && s.status !== "delivered" && s.id !== excludeId,
+      );
+    },
+    [shipments],
+  );
 
-
-
-
-
-    // ---------------- Shipment actions ----------------
-    // Helper: check if a driver already has an active (non-delivered) shipment.
-    // Returns the conflicting shipment if found.
-    const driverHasActiveShipment = useCallback(
-      (driverName: string, excludeId?: string): Shipment | undefined => {
-        if (!driverName) return undefined;
-        return shipments.find(
-          (s) =>
-            s.driver === driverName &&
-            s.status !== "delivered" &&
-            s.id !== excludeId,
-        );
-      },
-      [shipments],
-    );
-
-    const setStatus = (id: string, status: ShipmentStatus) => {
-      setShipments((prev) =>
+  const setStatus = (id: string, status: ShipmentStatus) => {
+    setShipments((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
         // When transitioning FROM "empty": clear pickupRoute, snap to origin point, reset progress
@@ -927,6 +919,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const addShipment = (s: Shipment) => {
+    // Prevent assigning a driver who already has an active (non-delivered) shipment
+    if (s.driver && s.type !== "wagon") {
+      const conflict = driverHasActiveShipment(s.driver);
+      if (conflict) {
+        alert(
+          `⚠️ "${s.driver}" жолооч "${conflict.trackingId}" хүргэлтэнд бүртгэлтэй байна!\n\nНэг жолооч нэг удаад зөвхөн 1 хүргэлтэнд бүртгэгдэх боломжтой.`,
+        );
+        return;
+      }
+    }
+
     const seeded: Shipment = {
       ...s,
       gpsOnline: s.type !== "wagon",
@@ -948,6 +951,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const updateShipment = (id: string, patch: Partial<Shipment>) => {
+    // If changing driver, check for conflict
+    if (patch.driver && patch.type !== "wagon") {
+      const conflict = driverHasActiveShipment(patch.driver, id);
+      if (conflict) {
+        alert(
+          `⚠️ "${patch.driver}" жолооч "${conflict.trackingId}" хүргэлтэнд бүртгэлтэй байна!\n\nНэг жолооч нэг удаад зөвхөн 1 хүргэлтэнд бүртгэгдэх боломжтой.`,
+        );
+        return;
+      }
+    }
+
     setShipments((prev) =>
       prev.map((s) => {
         if (s.id !== id) return s;
@@ -1072,7 +1086,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ---------------- Driver CRUD ----------------
   const addDriver = async (d: Driver) => {
     setDrivers((prev) => [...prev, d]);
-    const { data, error } = await supabase
+    const { data , error } = await supabase
       .from("drivers")
       .insert({
         name: d.name,

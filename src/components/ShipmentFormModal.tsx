@@ -217,22 +217,6 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
   const handleSave = () => {
     if (!computed || !originStation || !destStation) return;
 
-    // Validate driver uniqueness: check if driver already has another active shipment
-    if (form.driver && form.type !== "wagon") {
-      const activeShipment = shipments.find(
-        (s) =>
-          s.driver === form.driver &&
-          s.status !== "delivered" &&
-          (initial ? s.id !== initial.id : true),
-      );
-      if (activeShipment) {
-        alert(
-          `⚠️ "${form.driver}" жолооч "${activeShipment.trackingId}" хүргэлтэнд бүртгэлтэй байна!\n\nНэг жолооч нэг удаад зөвхөн 1 хүргэлтэнд бүртгэгдэх боломжтой.`,
-        );
-        return;
-      }
-    }
-
     const total = computed.total;
     const finalShipment: Shipment = {
       ...form,
@@ -674,6 +658,61 @@ function DriverSelectInner({
     (d) => d.name === form.driver && d.plateNumber === form.plateNumber,
   );
 
+  // Check if a driver already has an active (non-delivered) shipment
+  const driverHasActiveShipment = (driverName: string): string | null => {
+    const active = shipments.find(
+      (s) =>
+        s.driver === driverName &&
+        s.status !== "delivered" &&
+        (editing ? s.id !== initial?.id : true),
+    );
+    return active ? active.trackingId : null;
+  };
+
+  const [driverWarning, setDriverWarning] = useState<string | null>(null);
+
+  const handleDriverSelect = (driverId: string) => {
+    const d = drivers.find((x) => x.id === driverId);
+    if (!d) return;
+
+    // Check if driver already has an active shipment
+    const conflictTrackingId = driverHasActiveShipment(d.name);
+    if (conflictTrackingId) {
+      setDriverWarning(
+        `⚠️ "${d.name}" жолооч "${conflictTrackingId}" хүргэлтэнд бүртгэлтэй байна.`,
+      );
+      // Don't let user select an occupied driver
+      const currentDriver = drivers.find(
+        (x) => x.name === form.driver && x.plateNumber === form.plateNumber,
+      );
+      if (!currentDriver) {
+        setForm((f) => ({
+          ...f,
+          driver: "",
+          driverPhone: "",
+          vehicleId: "",
+          plateNumber: "",
+        }));
+      }
+      return;
+    }
+    setDriverWarning(null);
+
+    setForm((f) => ({
+      ...f,
+      driver: d.name,
+      driverPhone: d.phone,
+      driverLicense: d.license,
+      driverExperience: `${d.experience} жил`,
+      driverRating: d.rating,
+      plateNumber: d.plateNumber,
+      vehicleId: d.vehicleId,
+      capacity: d.capacity,
+      type: d.type,
+      country: d.country,
+    }));
+  };
+
   // Wagon: only contact number, no driver
   if (isWagon) {
     return (
@@ -723,7 +762,7 @@ function DriverSelectInner({
           className="inp"
         >
           <option value="">-- Жолооч сонгох --</option>
-          {activeTruckDrivers.map((d) => (
+          {availableDrivers.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name} · {d.plateNumber} · 🚚{" "}
               {d.country === "RU" ? "🇷🇺" : d.country === "CN" ? "🇨🇳" : "🇲🇳"}
