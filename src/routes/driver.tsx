@@ -1,11 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import { MobileViewToggle } from "@/components/MobileViewToggle";
-import { haversineDist, type ShipmentStatus } from "@/lib/demo-data";
+import { haversineDist } from "@/lib/demo-data";
 
 const driverLocales = {
   mn: {
@@ -13,10 +12,6 @@ const driverLocales = {
     history: "Түүхийн ачаа",
     gpsHeader: "GPS дамжуулалт",
     wagonEstimate: "вагон — цагаар тооцоолно",
-    gpsActive: "бодит GPS идэвхтэй",
-    gpsLiveLabel: "Бодит GPS цааш байршил авч байна",
-    gpsInactive: "GPS идэвхгүй, төхөөрөмжөөс байршил ирээгүй",
-    gpsWarning: "GPS асаах шаардлагатай. Та GPS-ээ асаахгүй бол энэ анхааруулга арилахгүй.",
     gpsUnsupported: "Таны төхөөрөмж GPS дэмжихгүй байна",
     noShipments: "Танд одоогоор ямар ч тээш оноогдоогүй байна",
     noHistory: "Танд одоогоор түүхэн ачаа байхгүй байна",
@@ -31,12 +26,9 @@ const driverLocales = {
     speed: "Хурд",
     eta: "ETA",
     location: "Байршил",
-    statusHeader: "Төлөв",
     inTransit: "Замд",
     stopped: "Зогссон",
     delivered: "Хүргэгдсэн",
-    startTrip: "▶ Аялал эхлүүлэх",
-    stopTrip: "■ Зогсоох",
     myShipments: "Миний ачаанууд",
     activeTab: "Идэвхтэй",
     historyTab: "Түүх",
@@ -48,10 +40,6 @@ const driverLocales = {
     history: "История",
     gpsHeader: "GPS передача",
     wagonEstimate: "вагон — рассчитывается по времени",
-    gpsActive: "GPS активен",
-    gpsLiveLabel: "GPS продолжает принимать позицию",
-    gpsInactive: "GPS неактивен, позиция не получена",
-    gpsWarning: "Необходимо включить GPS. Если он не включен, предупреждение не исчезнет.",
     gpsUnsupported: "Ваше устройство не поддерживает GPS",
     noShipments: "Вам пока не назначены грузы",
     noHistory: "У вас пока нет исторических грузов",
@@ -66,12 +54,9 @@ const driverLocales = {
     speed: "Скорость",
     eta: "ETA",
     location: "Позиция",
-    statusHeader: "Статус",
     inTransit: "В пути",
     stopped: "Остановлен",
     delivered: "Доставлен",
-    startTrip: "▶ Начать",
-    stopTrip: "■ Остановить",
     myShipments: "Мои грузы",
     activeTab: "Активные",
     historyTab: "История",
@@ -92,11 +77,7 @@ function DriverPage() {
     shipments,
     drivers: allDrivers,
     userId: currentUserId,
-    setStatus,
-    sharingIds,
-    setGpsOnline,
     startRealGps,
-    stopRealGps,
     realGpsActive,
   } = useStore();
   const nav = useNavigate();
@@ -150,56 +131,22 @@ function DriverPage() {
   }
 
   const isWagon = current.type === "wagon";
-  const gpsLive = realGpsActive.has(current.id);
-  const gpsActive = !isWagon && gpsLive;
 
-  // Dynamic status buttons based on current status flow: empty -> loading -> in_transit
-  const getStatusButtons = (): { v: ShipmentStatus; label: string }[] => {
-    if (current.status === "empty") {
-      return [
-        { v: "loading", label: "⬆ Авах цэгт ирлээ" },
-        { v: "in_transit", label: t.inTransit },
-      ];
-    } else if (current.status === "loading") {
-      return [
-        { v: "in_transit", label: "✅ Ачиж дууслаа" },
-        { v: "empty", label: "⬅ Буцах" },
-      ];
-    }
-    return [
-      { v: "in_transit", label: t.inTransit },
-      { v: "stopped", label: t.stopped },
-      { v: "delivered", label: t.delivered },
-    ];
-  };
-
-  const statusBtns = getStatusButtons();
-
-  const handleGpsToggle = () => {
-    if (isWagon) return;
-    if (gpsActive) return;
-    if (!navigator.geolocation) {
-      setGpsError(t.gpsUnsupported);
-      setGpsOnline(current.id, true);
-      return;
-    }
-    setGpsError(null);
-    startRealGps(current.id);
-    setGpsOnline(current.id, true);
-  };
-
-  // Auto-start GPS for empty shipments to capture driver's real position
+  // Force GPS on for any non-wagon shipment — no toggle, always active
   useEffect(() => {
     const c = visibleShipments.find((s) => s.id === active) ?? visibleShipments[0];
     if (!c || c.type === "wagon") return;
-    if (c.status === "empty" && !realGpsActive.has(c.id) && navigator.geolocation) {
+    if (!navigator.geolocation) {
+      setGpsError(t.gpsUnsupported);
+      return;
+    }
+    if (!realGpsActive.has(c.id)) {
       const timer = setTimeout(() => {
         startRealGps(c.id);
-        setGpsOnline(c.id, true);
-      }, 1500);
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [active, visibleShipments.length]);
+  }, [active, visibleShipments.length, current?.id]);
 
   return (
     <AppShell>
@@ -243,48 +190,25 @@ function DriverPage() {
                   {t.ruLabel}
                 </button>
               </div>
-              <button
-                onClick={handleGpsToggle}
-                disabled={isWagon || gpsActive}
-                className={`relative h-7 w-12 rounded-full transition-colors ${
-                  gpsActive ? "bg-primary" : "bg-secondary"
-                } ${isWagon || gpsActive ? "cursor-not-allowed opacity-50" : ""}`}
-                aria-label="GPS sharing"
-              >
-                <motion.span
-                  layout
-                  className="absolute top-0.5 h-6 w-6 rounded-full bg-background shadow"
-                  animate={{ left: gpsActive ? 22 : 2 }}
-                />
-              </button>
+              {!isWagon && (
+                <span className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/15 px-3 py-1 text-[10px] font-medium text-primary">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                  </span>
+                  GPS FORCED
+                </span>
+              )}
             </div>
 
             <div className="mt-3 text-sm text-muted-foreground">
               {t.gpsHeader}{" "}
               {isWagon ? (
                 <span className="text-warning">{t.wagonEstimate}</span>
-              ) : gpsLive ? (
-                <span className="text-primary font-medium">{t.gpsActive}</span>
               ) : (
-                <span className="text-warning">{t.gpsInactive}</span>
+                <span className="text-primary font-medium">Бодит GPS цааш байршил авч байна</span>
               )}
             </div>
-
-            {gpsLive && (
-              <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                </span>
-                <span className="text-primary font-medium">{t.gpsLiveLabel}</span>
-              </div>
-            )}
-
-            {!gpsActive && !isWagon && (
-              <div className="mt-2 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-                <span>⚠️ {t.gpsWarning}</span>
-              </div>
-            )}
 
             {gpsError && (
               <div className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
@@ -321,30 +245,6 @@ function DriverPage() {
                 label={t.location}
                 value={`${current.position[0].toFixed(4)}, ${current.position[1].toFixed(4)}`}
               />
-            </div>
-
-            <div className="mt-5">
-              <div className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
-                {t.statusHeader}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {statusBtns.map((b) => {
-                  const on = current.status === b.v;
-                  return (
-                    <button
-                      key={b.v}
-                      onClick={() => setStatus(current.id, b.v)}
-                      className={`rounded-lg border px-2 py-2 text-xs transition-colors ${
-                        on
-                          ? "border-primary/60 bg-primary/15 text-primary"
-                          : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {b.label}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Pickup location - always show */}
@@ -429,9 +329,6 @@ function DriverPage() {
                           <span>{d.contact}</span>
                         </div>
                       )}
-                      {d.note && (
-                        <div className="mt-0.5 text-muted-foreground italic">📝 {d.note}</div>
-                      )}
                       {d.items.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {d.items.map((it, j) => (
@@ -449,55 +346,6 @@ function DriverPage() {
                 </div>
               </div>
             )}
-
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              {current.status === "empty" ? (
-                <>
-                  <button
-                    onClick={() => setStatus(current.id, "loading")}
-                    className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-                  >
-                    ⬆ Авах цэгт ирлээ
-                  </button>
-                  <button
-                    onClick={() => setStatus(current.id, "stopped")}
-                    className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
-                  >
-                    ■ Зогсоох
-                  </button>
-                </>
-              ) : current.status === "loading" ? (
-                <>
-                  <button
-                    onClick={() => setStatus(current.id, "in_transit")}
-                    className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-                  >
-                    ✅ Ачиж дууслаа
-                  </button>
-                  <button
-                    onClick={() => setStatus(current.id, "empty")}
-                    className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
-                  >
-                    ⬅ Буцах (хоосон)
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setStatus(current.id, "in_transit")}
-                    className="rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-                  >
-                    {t.startTrip}
-                  </button>
-                  <button
-                    onClick={() => setStatus(current.id, "stopped")}
-                    className="rounded-lg border border-border bg-card/60 py-2.5 text-sm hover:bg-secondary"
-                  >
-                    {t.stopTrip}
-                  </button>
-                </>
-              )}
-            </div>
           </div>
 
           <div>
