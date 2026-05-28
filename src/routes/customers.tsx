@@ -34,8 +34,12 @@ function CustomersPage() {
   const [accountPassword, setAccountPassword] = useState("");
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
+
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [filterAccountStatus, setFilterAccountStatus] = useState<"all" | "active" | "inactive">(
+    "all",
+  );
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
@@ -163,6 +167,12 @@ function CustomersPage() {
     },
   });
 
+  const filteredCustomers = customers.filter((c) => {
+    if (filterAccountStatus === "active") return !!c.user_id;
+    if (filterAccountStatus === "inactive") return !c.user_id;
+    return true;
+  });
+
   useEffect(() => {
     if (loading) return;
     if (!role) nav({ to: "/" });
@@ -173,15 +183,15 @@ function CustomersPage() {
     if (!sentinelRef.current) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && visibleCount < customers.length) {
-          setVisibleCount((c) => Math.min(c + PAGE_SIZE, customers.length));
+        if (entries[0]?.isIntersecting && visibleCount < filteredCustomers.length) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredCustomers.length));
         }
       },
       { rootMargin: "200px" },
     );
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [visibleCount, customers.length]);
+  }, [visibleCount, filteredCustomers.length]);
 
   const openNew = () => {
     setEditing(null);
@@ -208,8 +218,8 @@ function CustomersPage() {
     saveMutation.mutate({ customer: form, password: accountPassword || undefined });
   };
 
-  const visibleCustomers = customers.slice(0, visibleCount);
-  const hasMore = visibleCount < customers.length;
+  const visibleCustomers = filteredCustomers.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredCustomers.length;
 
   if (loading || role !== "admin") return null;
 
@@ -232,12 +242,51 @@ function CustomersPage() {
             </button>
           </div>
 
-          <div className="mt-6 space-y-3">
+          {/* Active/Inactive filter */}
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFilterAccountStatus("all")}
+              className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                filterAccountStatus === "all"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              Бүгд
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterAccountStatus("active")}
+              className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                filterAccountStatus === "active"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              Бүртгэлтэй
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterAccountStatus("inactive")}
+              className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                filterAccountStatus === "inactive"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              Бүртгэлгүй
+            </button>
+          </div>
+
+          <div className="mt-4 space-y-3">
             {isLoading ? (
               <div className="py-12 text-center text-sm text-muted-foreground">Ачаалж байна...</div>
             ) : visibleCustomers.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
-                Харилцагч бүртгэгдээгүй байна. "Шинэ харилцагч" товчийг дарж нэмнэ үү.
+                {filterAccountStatus !== "all"
+                  ? "Шүүлтүүрт тохирох харилцагч олдсонгүй."
+                  : 'Харилцагч бүртгэгдээгүй байна. "Шинэ харилцагч" товчийг дарж нэмнэ үү.'}
               </div>
             ) : (
               <>
@@ -291,18 +340,18 @@ function CustomersPage() {
                   <div className="flex justify-center py-4">
                     <button
                       onClick={() =>
-                        setVisibleCount((c) => Math.min(c + PAGE_SIZE, customers.length))
+                        setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredCustomers.length))
                       }
                       className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
                     >
-                      Илүүг ачааллах ({customers.length - visibleCount} үлдсэн)
+                      Илүүг ачааллах ({filteredCustomers.length - visibleCount} үлдсэн)
                     </button>
                   </div>
                 )}
 
-                {!hasMore && customers.length > PAGE_SIZE && (
+                {!hasMore && filteredCustomers.length > PAGE_SIZE && (
                   <div className="py-4 text-center text-xs text-muted-foreground">
-                    Бүх харилцагч харагдсан ({customers.length})
+                    Бүх харилцагч харагдсан ({filteredCustomers.length})
                   </div>
                 )}
               </>

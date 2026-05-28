@@ -33,6 +33,7 @@ interface Props {
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
   onMarkStopDone?: (shipmentId: string, stopSeq: number) => void;
+  onMarkStopPending?: (shipmentId: string, stopSeq: number) => void;
 }
 
 export function ShipmentDetailModal({
@@ -42,6 +43,7 @@ export function ShipmentDetailModal({
   onEdit,
   onDelete,
   onMarkStopDone,
+  onMarkStopPending,
 }: Props) {
   return (
     <AnimatePresence>
@@ -211,13 +213,16 @@ export function ShipmentDetailModal({
                           <div className="text-sm font-semibold">
                             #{i + 1} · {d.location}
                           </div>
-                                                    <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                          <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                             {d.position[0].toFixed(4)}°N, {d.position[1].toFixed(4)}°E · ETA {d.eta}
                           </div>
                           {d.contact && (
                             <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                               <span>📞</span>
-                              <a href={`tel:${d.contact.replace(/\s/g, "")}`} className="hover:text-primary">
+                              <a
+                                href={`tel:${d.contact.replace(/\s/g, "")}`}
+                                className="hover:text-primary"
+                              >
                                 {d.contact}
                               </a>
                             </div>
@@ -235,6 +240,14 @@ export function ShipmentDetailModal({
                               className="rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5 text-[10px] text-accent hover:bg-accent/25"
                             >
                               Буулгасан
+                            </button>
+                          )}
+                          {isAdmin && d.status === "done" && onMarkStopPending && (
+                            <button
+                              onClick={() => onMarkStopPending(shipment.id, i + 1)}
+                              className="rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] text-warning hover:bg-warning/25"
+                            >
+                              Буугаагүй болгох
                             </button>
                           )}
                           <span

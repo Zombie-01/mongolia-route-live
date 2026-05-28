@@ -98,6 +98,7 @@ interface StoreState {
   }) => Promise<{ error?: string }>;
   refreshRoadRoute: (id: string) => Promise<void>;
   markStopDone: (shipmentId: string, stopSeq: number) => void;
+  markStopPending: (shipmentId: string, stopSeq: number) => void;
   reloadShipments: () => Promise<void>;
 
   drivers: Driver[];
@@ -1083,10 +1084,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .then(() => {});
   };
 
+  const markStopPending = (shipmentId: string, stopSeq: number) => {
+    setShipments((prev) =>
+      prev.map((s) => {
+        if (s.id !== shipmentId) return s;
+        return {
+          ...s,
+          dropoffs: s.dropoffs.map((d, i) =>
+            i === stopSeq - 1 ? { ...d, status: "pending" as const } : d,
+          ),
+        };
+      }),
+    );
+    supabase
+      .from("stops")
+      .update({ status: "pending" })
+      .eq("shipment_id", shipmentId)
+      .eq("seq", stopSeq)
+      .then(() => {});
+  };
+
   // ---------------- Driver CRUD ----------------
   const addDriver = async (d: Driver) => {
     setDrivers((prev) => [...prev, d]);
-    const { data , error } = await supabase
+    const { data, error } = await supabase
       .from("drivers")
       .insert({
         name: d.name,
@@ -1235,6 +1256,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         refreshRoadRoute,
         reloadShipments: loadShipmentsFromDb,
         markStopDone,
+        markStopPending,
         drivers,
         addDriver,
         updateDriver,

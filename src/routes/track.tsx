@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore, type Driver } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import { MobileViewToggle } from "@/components/MobileViewToggle";
@@ -86,7 +86,7 @@ export const Route = createFileRoute("/track")({
 });
 
 function TrackPage() {
-  const { role, customerId, shipments } = useStore();
+  const { role, customerId, shipments, markStopDone, markStopPending } = useStore();
   const nav = useNavigate();
   const [query, setQuery] = useState("MN-2041");
   const [submitted, setSubmitted] = useState("MN-2041");
@@ -101,6 +101,7 @@ function TrackPage() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterDriver, setFilterDriver] = useState("");
   const [filterTrackingIdLocal, setFilterTrackingIdLocal] = useState("");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
 
   const { drivers } = useStore();
 
@@ -128,8 +129,15 @@ function TrackPage() {
     ? typeFilteredShipments
     : typeFilteredShipments.filter((s) => s.status !== "delivered");
 
+  // Apply active/inactive filter
+  const activeFilteredShipments = baseFilteredShipments.filter((s) => {
+    if (filterActive === "active") return s.status !== "delivered" && s.status !== "stopped";
+    if (filterActive === "inactive") return s.status === "delivered" || s.status === "stopped";
+    return true;
+  });
+
   // Apply advanced filters
-  const filteredShipments = baseFilteredShipments.filter((s) => {
+  const filteredShipments = activeFilteredShipments.filter((s) => {
     // Date from filter
     if (filterDateFrom && s.createdAt) {
       const sDate = new Date(s.createdAt);
@@ -288,19 +296,82 @@ function TrackPage() {
                 🚆 Вагон
               </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            {/* Active/Inactive filter buttons */}
+            <div className="flex flex-wrap gap-1.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setFilterActive("all")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  filterActive === "all"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                {t.all}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterActive("active")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  filterActive === "active"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                {t.active}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterActive("inactive")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  filterActive === "inactive"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
+                }`}
+              >
+                Идэвхгүй
+              </button>
+            </div>
+            {/* Shipments list */}
+            <div className="space-y-1">
               {filteredShipments.map((s) => (
-                <button
+                <div
                   key={s.id}
                   onClick={() => {
                     setQuery(s.trackingId);
                     setSubmitted(s.trackingId);
                     setMobileView("map");
                   }}
-                  className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  className="cursor-pointer rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                 >
-                  {s.trackingId}
-                </button>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{s.trackingId}</span>
+                    <span
+                      className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
+                        s.status === "delivered"
+                          ? "border-accent/30 bg-accent/15 text-accent"
+                          : s.status === "stopped" || s.status === "delayed"
+                            ? "border-destructive/30 bg-destructive/10 text-destructive"
+                            : "border-primary/30 bg-primary/15 text-primary"
+                      }`}
+                    >
+                      {s.status === "delivered"
+                        ? t.delivered
+                        : s.status === "empty"
+                          ? "Хоосон"
+                          : s.status === "loading"
+                            ? "Ачиж байна"
+                            : s.status === "stopped"
+                              ? t.stopped
+                              : s.status === "delayed"
+                                ? t.delayed
+                                : t.inTransitState}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    {s.origin} → {s.destination}
+                  </div>
+                </div>
               ))}
             </div>
 
@@ -333,23 +404,25 @@ function TrackPage() {
                   />
                 </div>
               </div>
-              <div className="mt-2">
-                <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
-                  Жолооч
+              {mode !== "railway" && (
+                <div className="mt-2">
+                  <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                    Жолооч
+                  </div>
+                  <select
+                    value={filterDriver}
+                    onChange={(e) => setFilterDriver(e.target.value)}
+                    className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                  >
+                    <option value="">Бүгд</option>
+                    {drivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <select
-                  value={filterDriver}
-                  onChange={(e) => setFilterDriver(e.target.value)}
-                  className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
-                >
-                  <option value="">Бүгд</option>
-                  {drivers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              )}
               <div className="mt-2">
                 <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
                   Хүргэлтийн дугаар
@@ -362,13 +435,18 @@ function TrackPage() {
                   className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
                 />
               </div>
-              {(filterDateFrom || filterDateTo || filterDriver || filterTrackingIdLocal) && (
+              {(filterDateFrom ||
+                filterDateTo ||
+                filterDriver ||
+                filterTrackingIdLocal ||
+                filterActive !== "all") && (
                 <button
                   onClick={() => {
                     setFilterDateFrom("");
                     setFilterDateTo("");
                     setFilterDriver("");
                     setFilterTrackingIdLocal("");
+                    setFilterActive("all");
                   }}
                   className="mt-2 w-full rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive hover:bg-destructive/20"
                 >
@@ -472,8 +550,8 @@ function TrackPage() {
                     />
                   </div>
 
-                  {/* Dropoffs for customer */}
-                  {found.dropoffs.length > 0 && (
+                  {/* Dropoffs for admin with toggle */}
+                  {role === "admin" && found.dropoffs.length > 0 && (
                     <div className="mt-5">
                       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         {t.dropoffs}
@@ -488,15 +566,32 @@ function TrackPage() {
                               <span className="font-medium">
                                 #{i + 1} {d.location}
                               </span>
-                              <span
-                                className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
-                                  d.status === "done"
-                                    ? "border-accent/30 bg-accent/15 text-accent"
-                                    : "border-primary/30 bg-primary/15 text-primary"
-                                }`}
-                              >
-                                {d.status === "done" ? t.done : t.pending}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {d.status === "done" ? (
+                                  <button
+                                    onClick={() => markStopPending(found.id, i + 1)}
+                                    className="rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] text-warning hover:bg-warning/25"
+                                  >
+                                    Буугаагүй болгох
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => markStopDone(found.id, i + 1)}
+                                    className="rounded-full border border-accent/40 bg-accent/15 px-2 py-0.5 text-[10px] text-accent hover:bg-accent/25"
+                                  >
+                                    Буулгасан
+                                  </button>
+                                )}
+                                <span
+                                  className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
+                                    d.status === "done"
+                                      ? "border-accent/30 bg-accent/15 text-accent"
+                                      : "border-primary/30 bg-primary/15 text-primary"
+                                  }`}
+                                >
+                                  {d.status === "done" ? t.done : t.pending}
+                                </span>
+                              </div>
                             </div>
                             <div className="mt-1 text-muted-foreground">ETA {d.eta}</div>
                           </div>

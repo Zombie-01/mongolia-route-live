@@ -449,6 +449,7 @@ function DashboardPage() {
             }}
             onDelete={(id) => removeShipment(id)}
             onMarkStopDone={markStopDone}
+            onMarkStopPending={markStopPending}
           />
           <ShipmentFormModal
             open={formOpen}
