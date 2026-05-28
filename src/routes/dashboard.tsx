@@ -43,6 +43,7 @@ function DashboardPage() {
     overridePosition,
     markStopDone,
     reloadShipments,
+    markStopPending
   } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);

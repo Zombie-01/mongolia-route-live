@@ -357,29 +357,33 @@ function DriversPage() {
 
     await addDriver(driverWithUser);
 
-    downloadUserInfoPdf({
-      title: "Жолоочийн нэвтрэх мэдээлэл",
-      filename: `${form.name.replace(/\s+/g, "_") || driverWithUser.id}_driver_info.pdf`,
-      lines: [
-        { label: "Нэр", value: form.name },
-        { label: "Утас", value: form.phone || "" },
-        { label: "Email", value: accountEmail },
-        { label: "Password", value: accountPassword },
-        { label: "Цагийн ангилал", value: form.type === "wagon" ? "Вагон" : "Машин" },
-        { label: "Тусгай дугаар", value: form.vehicleId || "" },
-        { label: "Платны дугаар", value: form.plateNumber || "" },
-        { label: "Хүртээмж", value: form.capacity || "" },
-        { label: "Лиценз", value: form.license || "" },
-        { label: "Туршлага", value: form.experience ? `${form.experience} жил` : "" },
-        { label: "Оролтын улс", value: form.country || "" },
-        { label: "Passport зураг", value: passportUrl || "", type: "image" },
-        { label: "Профайл зураг", value: profileUrl || "", type: "image" },
-        { label: "Тээврийн хэрэгслийн гэрчилгээ", value: vehicleCertUrl || "", type: "image" },
-        { label: "Чиргүүлийн гэрчилгээ", value: trailerCertUrl || "", type: "image" },
-      ],
-      notes:
-        "Энэхүү PDF-д таны системд нэвтрэх ашиглагчийн мэдээлэл, имэйл, нууц үг болон жолоочийн мэдээлэл багтсан болно.",
-    });
+    try {
+      await downloadUserInfoPdf({
+        title: "Жолоочийн нэвтрэх мэдээлэл",
+        filename: `${form.name.replace(/\s+/g, "_") || driverWithUser.id}_driver_info.pdf`,
+        lines: [
+          { label: "Нэр", value: form.name },
+          { label: "Утас", value: form.phone || "" },
+          { label: "Email", value: accountEmail },
+          { label: "Password", value: accountPassword },
+          { label: "Цагийн ангилал", value: form.type === "wagon" ? "Вагон" : "Машин" },
+          { label: "Тусгай дугаар", value: form.vehicleId || "" },
+          { label: "Платны дугаар", value: form.plateNumber || "" },
+          { label: "Хүртээмж", value: form.capacity || "" },
+          { label: "Лиценз", value: form.license || "" },
+          { label: "Туршлага", value: form.experience ? `${form.experience} жил` : "" },
+          { label: "Оролтын улс", value: form.country || "" },
+          { label: "Passport зураг", value: passportUrl || "", type: "image" },
+          { label: "Профайл зураг", value: profileUrl || "", type: "image" },
+          { label: "Тээврийн хэрэгслийн гэрчилгээ", value: vehicleCertUrl || "", type: "image" },
+          { label: "Чиргүүлийн гэрчилгээ", value: trailerCertUrl || "", type: "image" },
+        ],
+        notes:
+          "Энэхүү PDF-д таны системд нэвтрэх ашиглагчийн мэдээлэл, имэйл, нууц үг болон жолоочийн мэдээлэл багтсан болно.",
+      });
+    } catch (e) {
+      console.warn("Failed to generate driver PDF", e);
+    }
 
     window.alert(
       `✅ Шинэ жолооч амжилттай үүсгэгдлээ!\n\n` +

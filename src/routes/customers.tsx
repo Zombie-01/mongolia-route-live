@@ -120,25 +120,87 @@ function CustomersPage() {
         if (error) throw error;
       }
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       if (!editing && variables.password) {
-        downloadUserInfoPdf({
-          title: "Харилцагчийн нэвтрэх мэдээлэл",
-          filename: `${variables.customer.name.replace(/\s+/g, "_") || variables.customer.id}_customer_info.pdf`,
-          lines: [
-            { label: "Нэр", value: variables.customer.name },
-            { label: "Утас", value: variables.customer.phone || "" },
-            { label: "Email", value: variables.customer.email || "" },
-            { label: "Password", value: variables.password },
-            {
-              label: "Өртөө",
-              value: stations.find((s) => s.id === variables.customer.station_id)?.name || "",
-            },
-            { label: "Хаяг", value: variables.customer.address || "" },
-          ],
-          notes:
-            "Энэхүү PDF-д харилцагчийн системд нэвтрэх мэдээлэл болон холбоо барих мэдээлэл багтсан болно.",
-        });
+        // Fetch drivers to include in customer PDF
+        let driverRows = [] as any[];
+        try {
+          const { data: drvData, error: drvErr } = await supabase
+            .from("drivers")
+            .select("*")
+            .order("created_at", { ascending: false });
+          if (!drvErr && drvData) driverRows = drvData as any[];
+        } catch (e) {
+          console.warn("Could not fetch drivers for PDF", e);
+        }
+
+        const baseLines = [
+          { label: "Нэр", value: variables.customer.name },
+          { label: "Утас", value: variables.customer.phone || "" },
+          { label: "Email", value: variables.customer.email || "" },
+          { label: "Password", value: variables.password },
+          {
+            label: "Өртөө",
+            value: stations.find((s) => s.id === variables.customer.station_id)?.name || "",
+          },
+          { label: "Хаяг", value: variables.customer.address || "" },
+        ];
+
+        // Append drivers section
+        const driverLines: any[] = [];
+        if (driverRows.length > 0) {
+          driverLines.push({ label: "\n\n—— Жолооч нар ——", value: "" });
+          for (const d of driverRows) {
+            driverLines.push({ label: `Жолооч: ${d.name || ""}`, value: d.name || "" });
+            driverLines.push({ label: "Утас", value: d.phone || "" });
+            driverLines.push({ label: "Лиценз", value: d.license || "" });
+            driverLines.push({
+              label: "Туршлага",
+              value: d.experience ? `${d.experience} жил` : "",
+            });
+            driverLines.push({ label: "Плат", value: d.plate_number || "" });
+            driverLines.push({ label: "ID", value: d.vehicle_id || "" });
+            // images if available
+            if (d.profile_photo_url)
+              driverLines.push({
+                label: "Профайл зураг",
+                value: d.profile_photo_url,
+                type: "image",
+              });
+            if (d.passport_photo_url)
+              driverLines.push({
+                label: "Passport зураг",
+                value: d.passport_photo_url,
+                type: "image",
+              });
+            if (d.vehicle_cert_url)
+              driverLines.push({
+                label: "Тээврийн гэрчилгээ",
+                value: d.vehicle_cert_url,
+                type: "image",
+              });
+            if (d.trailer_cert_url)
+              driverLines.push({
+                label: "Чиргүүлийн гэрчилгээ",
+                value: d.trailer_cert_url,
+                type: "image",
+              });
+            // small separator
+            driverLines.push({ label: "", value: "" });
+          }
+        }
+
+        try {
+          await downloadUserInfoPdf({
+            title: "Харилцагчийн нэвтрэх мэдээлэл",
+            filename: `${variables.customer.name.replace(/\s+/g, "_") || variables.customer.id}_customer_info.pdf`,
+            lines: [...baseLines, ...driverLines],
+            notes:
+              "Энэхүү PDF-д харилцагчийн системд нэвтрэх мэдээлэл болон холбоо барих мэдээлэл, систем дэхь жолооч нарын товч мэдээлэл багтсан болно.",
+          });
+        } catch (e) {
+          console.warn("Failed to generate customer PDF", e);
+        }
 
         setTimeout(() => {
           window.alert(
