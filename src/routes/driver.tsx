@@ -165,7 +165,7 @@ function DriverPage() {
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [active, visibleShipments.length, current?.id]);
+  }, [active, visibleShipments, realGpsActive, startRealGps, t.gpsUnsupported]);
 
   return (
     <AppShell>
