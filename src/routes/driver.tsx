@@ -132,8 +132,6 @@ function DriverPage() {
     if (!role) nav({ to: "/" });
   }, [role, loading, nav]);
 
-  if (loading || !role) return null;
-
   // Force GPS on for any non-wagon shipment — no toggle, always active
   useEffect(() => {
     const c = visibleShipments.find((s) => s.id === active) ?? visibleShipments[0];
@@ -149,6 +147,8 @@ function DriverPage() {
       return () => clearTimeout(timer);
     }
   }, [active, visibleShipments, realGpsActive, startRealGps, t.gpsUnsupported]);
+
+  if (loading || !role) return null;
 
   if (!current) {
     return (
