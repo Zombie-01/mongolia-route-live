@@ -107,13 +107,36 @@ function DriverPage() {
     return name;
   }, [currentUserId, allDrivers, name]);
 
-  const myShipments = matchedDriverName
-    ? shipments.filter((s) => s.driver === matchedDriverName)
-    : [];
-  const visibleShipments = showDelivered
-    ? myShipments
-    : myShipments.filter((s) => s.status !== "delivered");
+  const matchedDriverNameLower = matchedDriverName?.trim().toLowerCase() ?? "";
+  const myShipments = useMemo(() => {
+    return matchedDriverNameLower
+      ? shipments
+          .filter((s) => s.driver?.trim().toLowerCase() === matchedDriverNameLower)
+          .sort((a, b) => {
+            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return bTime - aTime;
+          })
+      : [];
+  }, [shipments, matchedDriverNameLower]);
+
+  const activeShipments = useMemo(
+    () => myShipments.filter((s) => s.status !== "delivered"),
+    [myShipments],
+  );
+  const historyShipments = useMemo(
+    () => myShipments.filter((s) => s.status === "delivered"),
+    [myShipments],
+  );
+  const visibleShipments = showDelivered ? historyShipments : activeShipments;
   const current = visibleShipments.find((s) => s.id === active) ?? visibleShipments[0];
+
+  useEffect(() => {
+    if (!visibleShipments.length) return;
+    if (!active || !visibleShipments.some((s) => s.id === active)) {
+      setActive(visibleShipments[0].id);
+    }
+  }, [active, visibleShipments]);
 
   if (!current) {
     return (
@@ -361,7 +384,7 @@ function DriverPage() {
                       : "bg-card/60 text-muted-foreground hover:bg-secondary"
                   }`}
                 >
-                  {t.activeTab}
+                  {t.activeTab} ({activeShipments.length})
                 </button>
                 <button
                   type="button"
@@ -372,7 +395,7 @@ function DriverPage() {
                       : "bg-card/60 text-muted-foreground hover:bg-secondary"
                   }`}
                 >
-                  {t.historyTab}
+                  {t.historyTab} ({historyShipments.length})
                 </button>
               </div>
             </div>

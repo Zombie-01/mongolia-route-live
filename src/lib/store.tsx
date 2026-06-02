@@ -1068,11 +1068,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setShipments((prev) =>
       prev.map((s) => {
         if (s.id !== shipmentId) return s;
+        const nextDropoffs = s.dropoffs.map((d, i) =>
+          i === stopSeq - 1 ? { ...d, status: "done" as const } : d,
+        );
+        const allDone = nextDropoffs.every((d) => d.status === "done");
         return {
           ...s,
-          dropoffs: s.dropoffs.map((d, i) =>
-            i === stopSeq - 1 ? { ...d, status: "done" as const } : d,
-          ),
+          dropoffs: nextDropoffs,
+          status: allDone ? "delivered" : s.status,
         };
       }),
     );
@@ -1082,17 +1085,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .eq("shipment_id", shipmentId)
       .eq("seq", stopSeq)
       .then(() => {});
+
+    const shipment = shipments.find((x) => x.id === shipmentId);
+    if (shipment) {
+      const nextDropoffs = shipment.dropoffs.map((d, i) =>
+        i === stopSeq - 1 ? { ...d, status: "done" as const } : d,
+      );
+      const allDone = nextDropoffs.every((d) => d.status === "done");
+      if (allDone) {
+        persistField(shipmentId, { status: "delivered" });
+      }
+    }
   };
 
   const markStopPending = (shipmentId: string, stopSeq: number) => {
     setShipments((prev) =>
       prev.map((s) => {
         if (s.id !== shipmentId) return s;
+        const nextDropoffs = s.dropoffs.map((d, i) =>
+          i === stopSeq - 1 ? { ...d, status: "pending" as const } : d,
+        );
+        const allDone = nextDropoffs.every((d) => d.status === "done");
         return {
           ...s,
-          dropoffs: s.dropoffs.map((d, i) =>
-            i === stopSeq - 1 ? { ...d, status: "pending" as const } : d,
-          ),
+          dropoffs: nextDropoffs,
+          status: allDone ? s.status : s.status === "delivered" ? "in_transit" : s.status,
         };
       }),
     );
@@ -1102,6 +1119,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .eq("shipment_id", shipmentId)
       .eq("seq", stopSeq)
       .then(() => {});
+
+    const shipment = shipments.find((x) => x.id === shipmentId);
+    if (shipment) {
+      const nextDropoffs = shipment.dropoffs.map((d, i) =>
+        i === stopSeq - 1 ? { ...d, status: "pending" as const } : d,
+      );
+      const allDone = nextDropoffs.every((d) => d.status === "done");
+      if (!allDone && shipment.status === "delivered") {
+        persistField(shipmentId, { status: "in_transit" });
+      }
+    }
   };
 
   // ---------------- Driver CRUD ----------------
