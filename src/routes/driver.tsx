@@ -88,17 +88,6 @@ function DriverPage() {
   const [language, setLanguage] = useState<"mn" | "ru">("mn");
   const t = driverLocales[language];
 
-  useEffect(() => {
-    if (loading) return;
-    if (!role) nav({ to: "/" });
-  }, [role, loading, nav]);
-
-  if (loading || !role) return null;
-
-  // Жолоочийн хүргэлтүүдийг шүүхдээ:
-  // 1. Эхлээд userId-ээр тохирох жолоочийг олох (drivers хүснэгтээс)
-  // 2. Тэр жолоочийн нэрээр хүргэлтүүдийг шүүх
-  // Энэ нь жолоочийн profile-ийн display_name нь driver-ийн name-тай таарахгүй тохиолдолд ч зөв ажиллана.
   const matchedDriverName = useMemo(() => {
     if (currentUserId && allDrivers.length > 0) {
       const driver = allDrivers.find((d) => d.userId === currentUserId);
@@ -137,6 +126,13 @@ function DriverPage() {
       setActive(visibleShipments[0].id);
     }
   }, [active, visibleShipments]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!role) nav({ to: "/" });
+  }, [role, loading, nav]);
+
+  if (loading || !role) return null;
 
   if (!current) {
     return (
