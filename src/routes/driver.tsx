@@ -134,6 +134,22 @@ function DriverPage() {
 
   if (loading || !role) return null;
 
+  // Force GPS on for any non-wagon shipment — no toggle, always active
+  useEffect(() => {
+    const c = visibleShipments.find((s) => s.id === active) ?? visibleShipments[0];
+    if (!c || c.type === "wagon") return;
+    if (!navigator.geolocation) {
+      setGpsError(t.gpsUnsupported);
+      return;
+    }
+    if (!realGpsActive.has(c.id)) {
+      const timer = setTimeout(() => {
+        startRealGps(c.id);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [active, visibleShipments, realGpsActive, startRealGps, t.gpsUnsupported]);
+
   if (!current) {
     return (
       <AppShell>
@@ -150,22 +166,6 @@ function DriverPage() {
   }
 
   const isWagon = current.type === "wagon";
-
-  // Force GPS on for any non-wagon shipment — no toggle, always active
-  useEffect(() => {
-    const c = visibleShipments.find((s) => s.id === active) ?? visibleShipments[0];
-    if (!c || c.type === "wagon") return;
-    if (!navigator.geolocation) {
-      setGpsError(t.gpsUnsupported);
-      return;
-    }
-    if (!realGpsActive.has(c.id)) {
-      const timer = setTimeout(() => {
-        startRealGps(c.id);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [active, visibleShipments, realGpsActive, startRealGps, t.gpsUnsupported]);
 
   return (
     <AppShell>
