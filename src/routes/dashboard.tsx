@@ -43,7 +43,7 @@ function DashboardPage() {
     overridePosition,
     markStopDone,
     reloadShipments,
-    markStopPending
+    markStopPending,
   } = useStore();
   const nav = useNavigate();
   const [focus, setFocus] = useState<string | undefined>(undefined);
@@ -86,7 +86,9 @@ function DashboardPage() {
   if (loading || role !== "admin") return null;
 
   // Compute filtered shipments
-  const baseVisible = showDelivered ? shipments : shipments.filter((x) => x.status !== "delivered");
+  const baseVisible = showDelivered
+    ? shipments.filter((x) => x.status === "delivered")
+    : shipments.filter((x) => x.status !== "delivered");
   const modeFiltered =
     mode === "all"
       ? baseVisible

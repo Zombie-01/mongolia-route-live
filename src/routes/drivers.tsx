@@ -359,13 +359,15 @@ function DriversPage() {
 
     try {
       await downloadUserInfoPdf({
-        title: "Жолоочийн нэвтрэх мэдээлэл",
+        title: "Жолоочийн мэдээллийн PDF",
         filename: `${form.name.replace(/\s+/g, "_") || driverWithUser.id}_driver_info.pdf`,
         lines: [
+          { label: "Нэвтрэх мэдээлэл", value: "", type: "section" },
           { label: "Нэр", value: form.name },
           { label: "Утас", value: form.phone || "" },
           { label: "Email", value: accountEmail },
           { label: "Password", value: accountPassword },
+          { label: "Тээврийн мэдээлэл", value: "", type: "section" },
           { label: "Цагийн ангилал", value: form.type === "wagon" ? "Вагон" : "Машин" },
           { label: "Тусгай дугаар", value: form.vehicleId || "" },
           { label: "Платны дугаар", value: form.plateNumber || "" },
@@ -373,6 +375,7 @@ function DriversPage() {
           { label: "Лиценз", value: form.license || "" },
           { label: "Туршлага", value: form.experience ? `${form.experience} жил` : "" },
           { label: "Оролтын улс", value: form.country || "" },
+          { label: "Зураг ба баримт бичиг", value: "", type: "section" },
           { label: "Passport зураг", value: passportUrl || "", type: "image" },
           { label: "Профайл зураг", value: profileUrl || "", type: "image" },
           { label: "Тээврийн хэрэгслийн гэрчилгээ", value: vehicleCertUrl || "", type: "image" },
@@ -431,6 +434,43 @@ function DriversPage() {
       URL.revokeObjectURL(u);
     } catch (e) {
       console.error("Download failed", e);
+    }
+  };
+
+  const downloadDriverPdf = async (driver: Driver) => {
+    try {
+      await downloadUserInfoPdf({
+        title: "Жолоочийн бүрэн мэдээлэл",
+        filename: `${driver.name.replace(/\s+/g, "_") || driver.id}_driver_info.pdf`,
+        lines: [
+          { label: "Жолоочийн үндсэн мэдээлэл", value: "", type: "section" },
+          { label: "Нэр", value: driver.name },
+          { label: "Утас", value: driver.phone || "-" },
+          { label: "Email", value: driver.email || "-" },
+          { label: "Төрөл", value: typeLabel(driver.type) },
+          { label: "Машин", value: driver.vehicleId || "-" },
+          { label: "Платны дугаар", value: driver.plateNumber || "-" },
+          { label: "Даац", value: driver.capacity || "-" },
+          { label: "Лиценз", value: driver.license || "-" },
+          { label: "Туршлага", value: driver.experience ? `${driver.experience} жил` : "-" },
+          { label: "Улс", value: driver.country || "-" },
+          { label: "Үнэлгээ", value: `⭐ ${driver.rating.toFixed(1)}` },
+          { label: "Чиргүүлийн мэдээлэл", value: "", type: "section" },
+          {
+            label: "Чиргүүлийн дугаар",
+            value: driver.trailerPlates.length > 0 ? driver.trailerPlates.join(", ") : "-",
+          },
+          { label: "Зураг ба баримт бичиг", value: "", type: "section" },
+          { label: "Профайл зураг", value: driver.profileImage || "", type: "image" },
+          { label: "Паспорын зураг", value: driver.passportImage || "", type: "image" },
+          { label: "Тээврийн гэрчилгээ", value: driver.vehicleCertImage || "", type: "image" },
+          { label: "Чиргүүлийн гэрчилгээ", value: driver.trailerCertImage || "", type: "image" },
+        ],
+        notes:
+          "Энэхүү PDF-д жолоочийн бүрэн мэдээлэл болон зурагнууд багтсан бөгөөд нууц үг агуулсангүй.",
+      });
+    } catch (e) {
+      console.warn("Failed to generate driver PDF", e);
     }
   };
 
@@ -1153,6 +1193,12 @@ function DriversPage() {
                   className="rounded-lg border border-border bg-card/60 px-3 py-2 text-sm sm:px-4"
                 >
                   Хаах
+                </button>
+                <button
+                  onClick={() => detailDriver && downloadDriverPdf(detailDriver)}
+                  className="rounded-lg border border-primary/40 bg-primary/15 px-3 py-2 text-sm text-primary hover:bg-primary/25"
+                >
+                  PDF татах
                 </button>
                 <button
                   onClick={() => detailDriver && downloadJson(detailDriver)}

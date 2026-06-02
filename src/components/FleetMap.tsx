@@ -357,19 +357,6 @@ export function FleetMap({
       />
       {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
 
-      {/* Draw all railway segments from loaded GeoJSON */}
-      {railSegments.map((seg, idx) => (
-        <Polyline
-          key={`rail-${idx}`}
-          positions={seg}
-          pathOptions={{
-            color: "#8b5cf6",
-            weight: 1.8,
-            opacity: 0.55,
-            dashArray: "8 6",
-          }}
-        />
-      ))}
       {shipments.map((s) => {
         const isTruck = s.type !== "wagon";
         const effectiveRoute =

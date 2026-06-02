@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/lib/store";
+import { downloadUserInfoPdf } from "@/lib/user-info-pdf";
 import { AppShell } from "@/components/AppShell";
 import { FleetMap } from "@/components/FleetMap";
 import { MobileViewToggle } from "@/components/MobileViewToggle";
@@ -86,7 +87,7 @@ export const Route = createFileRoute("/track")({
 });
 
 function TrackPage() {
-  const { role, customerId, shipments, markStopDone, markStopPending } = useStore();
+  const { role, customerId, shipments, drivers, markStopDone, markStopPending } = useStore();
   const nav = useNavigate();
   const [query, setQuery] = useState("MN-2041");
   const [submitted, setSubmitted] = useState("MN-2041");
@@ -102,8 +103,6 @@ function TrackPage() {
   const [filterDriver, setFilterDriver] = useState("");
   const [filterTrackingIdLocal, setFilterTrackingIdLocal] = useState("");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
-
-  const { drivers } = useStore();
 
   useEffect(() => {
     if (!role) nav({ to: "/" });
@@ -458,15 +457,106 @@ function TrackPage() {
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (!found) return;
-                  const content = `<!doctype html><html><head><meta charset="utf-8"><title>Shipment ${found.trackingId}</title><style>body{font-family:sans-serif;color:#111;margin:24px;}h1{font-size:28px;margin-bottom:8px;}h2{font-size:18px;margin:16px 0 8px;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{padding:8px;border:1px solid #ccc;text-align:left;}th{background:#f4f4f4;}</style></head><body><h1>Shipment ${found.trackingId}</h1><p><strong>${found.cargo}</strong></p><h2>${t.shipmentInfo}</h2><table><tbody><tr><th>${t.status}</th><td>${found.status === "delivered" ? t.delivered : found.status === "stopped" ? t.stopped : t.inTransitState}</td></tr><tr><th>${t.route}</th><td>${found.origin} → ${found.destination}</td></tr><tr><th>${t.speed}</th><td>${found.speed} км/ц</td></tr><tr><th>${t.eta}</th><td>${found.eta}</td></tr><tr><th>${t.location}</th><td>${found.position[0].toFixed(4)}, ${found.position[1].toFixed(4)}</td></tr></tbody></table><h2>${t.driver}</h2><table><tbody><tr><th>${t.driver}</th><td>${found.driver}</td></tr><tr><th>${t.phone}</th><td>${found.driverPhone}</td></tr><tr><th>${t.license}</th><td>${found.driverLicense}</td></tr><tr><th>${t.experience}</th><td>${found.driverExperience}</td></tr><tr><th>Rating</th><td>${found.driverRating.toFixed(1)}</td></tr><tr><th>${t.vehicle}</th><td>${found.vehicleId}</td></tr><tr><th>${t.plate}</th><td>${found.plateNumber}</td></tr></tbody></table><h2>${t.dropoffs}</h2><table><tbody>${found.dropoffs.map((d, i) => `<tr><th>#${i + 1} ${d.location}</th><td>ETA ${d.eta} · ${d.status === "done" ? t.done : t.pending}</td></tr>`).join("")}</tbody></table></body></html>`;
-                  const printWindow = window.open("", "_blank", "width=900,height=700");
-                  if (!printWindow) return;
-                  printWindow.document.write(content);
-                  printWindow.document.close();
-                  printWindow.focus();
-                  printWindow.print();
+
+                  const matchedDriver = drivers.find(
+                    (d) =>
+                      d.name === found.driver ||
+                      d.vehicleId === found.vehicleId ||
+                      d.phone === found.driverPhone,
+                  );
+
+                  const statusLabel =
+                    found.status === "delivered"
+                      ? t.delivered
+                      : found.status === "stopped"
+                        ? t.stopped
+                        : found.status === "loading"
+                          ? "Ачиж байна"
+                          : found.status === "empty"
+                            ? "Хоосон"
+                            : found.status === "delayed"
+                              ? t.delayed
+                              : t.inTransitState;
+
+                  const cargoItems = found.cargoItems
+                    .map((item) => `${item.name}: ${item.qty} ${item.unit ?? "тн"}`)
+                    .join("; ");
+
+                  const lines = [
+                    { label: "Тээшийн дугаар", value: found.trackingId },
+                    { label: t.shipmentInfo, value: found.cargo },
+                    { label: t.status, value: statusLabel },
+                    { label: t.route, value: `${found.origin} → ${found.destination}` },
+                    { label: t.speed, value: `${found.speed} км/ц` },
+                    { label: t.eta, value: found.eta },
+                    {
+                      label: t.location,
+                      value: `${found.position[0].toFixed(4)}, ${found.position[1].toFixed(4)}`,
+                    },
+                    { label: "Ачааны нийт жин", value: found.totalWeight || "" },
+                    { label: "Тээшийн багтаамж", value: found.capacity || "" },
+                    { label: "Ачааны дэлгэрэнгүй", value: cargoItems },
+                    { label: "Илгээх", value: found.shipper || "" },
+                    { label: "Хүлээн авагч", value: found.consignee || "" },
+                  ];
+
+                  if (found.dropoffs.length > 0) {
+                    lines.push({ label: "Буулгах цэгүүд", value: "" });
+                    for (const [index, dropoff] of found.dropoffs.entries()) {
+                      lines.push({
+                        label: `#${index + 1} ${dropoff.location}`,
+                        value: `ETA ${dropoff.eta} · ${dropoff.status === "done" ? t.done : t.pending}`,
+                      });
+                    }
+                  }
+
+                  lines.push({ label: "", value: "" });
+                  lines.push({ label: t.driver, value: found.driver });
+                  lines.push({ label: t.phone, value: found.driverPhone });
+                  lines.push({ label: t.license, value: found.driverLicense });
+                  lines.push({ label: t.experience, value: found.driverExperience });
+                  lines.push({ label: "Rating", value: found.driverRating.toFixed(1) });
+                  lines.push({ label: t.vehicle, value: found.vehicleId });
+                  lines.push({ label: t.plate, value: found.plateNumber });
+
+                  const imageLines = matchedDriver
+                    ? [
+                        {
+                          label: "Профайл зураг",
+                          value: matchedDriver.profileImage || "",
+                          type: "image",
+                        },
+                        {
+                          label: "Паспорт зураг",
+                          value: matchedDriver.passportImage || "",
+                          type: "image",
+                        },
+                        {
+                          label: "Тээврийн гэрчилгээ",
+                          value: matchedDriver.vehicleCertImage || "",
+                          type: "image",
+                        },
+                        {
+                          label: "Чиргүүлийн гэрчилгээ",
+                          value: matchedDriver.trailerCertImage || "",
+                          type: "image",
+                        },
+                      ].filter((line) => line.value)
+                    : [];
+
+                  try {
+                    await downloadUserInfoPdf({
+                      title: `Shipment ${found.trackingId}`,
+                      filename: `${found.trackingId.replace(/\s+/g, "_")}_shipment.pdf`,
+                      lines: [...lines, ...imageLines],
+                      notes: "Энэхүү PDF-д тээш болон жолоочийн мэдээлэл багтсан болно.",
+                    });
+                  } catch (error) {
+                    console.warn("Failed to generate shipment PDF", error);
+                    window.alert("PDF үүсгэх үед алдаа гарлаа. Дахин оролдоно уу.");
+                  }
                 }}
                 className="rounded-lg border border-border bg-card/60 px-4 py-2 text-sm text-muted-foreground hover:bg-secondary"
               >
@@ -511,7 +601,7 @@ function TrackPage() {
                     </div>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
                       <motion.div
-                        className="h-full bg-gradient-to-r from-primary to-accent"
+                        className="h-full bg-linear-to-r from-primary to-accent"
                         animate={{ width: `${Math.round(found.progress * 100)}%` }}
                         transition={{ duration: 0.6 }}
                       />

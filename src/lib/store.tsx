@@ -328,76 +328,103 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const persistField = useCallback(async (id: string, patch: Record<string, unknown>) => {
-    try {
-      await supabase
-        .from("shipments")
-        .update(patch as never)
-        .eq("id", id);
-    } catch {
-      // ignore
-    }
+  const reportCrudError = useCallback((operation: string, error: unknown) => {
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "Сэрвэрийн алдаа гарлаа");
+    console.error(`CRUD ${operation} failed:`, error);
+    window.alert(`⚠️ ${operation} алдаатай боллоо.
+
+${message}`);
   }, []);
 
-  const persistShipment = useCallback(async (s: Shipment) => {
-    try {
-      const row = {
-        tracking_id: s.trackingId,
-        status: s.status,
-        type: s.type ?? "truck",
-        country: s.country ?? "MN",
-        cargo: s.cargo,
-        origin: s.origin,
-        destination: s.destination,
-        route: s.route as unknown as Json,
-        road_route: s.roadRoute ? (s.roadRoute as unknown as Json) : null,
-        progress: s.progress,
-        position: s.position as unknown as Json,
-        speed: s.speed,
-        eta: s.eta,
-        driver_name: s.driver,
-        driver_phone: s.driverPhone,
-        driver_license: s.driverLicense,
-        driver_experience: parseInt(s.driverExperience) || 0,
-        driver_rating: s.driverRating,
-        vehicle_id: s.vehicleId,
-        plate_number: s.plateNumber,
-        capacity: s.capacity,
-        total_weight: s.totalWeight,
-        shipper: s.shipper,
-        consignee: s.consignee,
-        shipper_id: s.shipperId ?? null,
-        receiver_id: s.receiverId ?? null,
-        cargo_items: s.cargoItems as unknown as Json,
-        gps_online: s.gpsOnline ?? true,
-        last_gps_at: s.lastGpsAt ?? null,
-        last_known_pos: s.lastKnownPos ? (s.lastKnownPos as unknown as Json) : null,
-        manual_override: s.manualOverride ?? false,
-      };
-
-      if (s.id.includes("-") && s.id.length > 20) {
-        await supabase.from("shipments").update(row).eq("id", s.id);
-      } else {
-        const { data } = await supabase.from("shipments").insert(row).select("id").single();
-        if (data?.id) {
-          setShipments((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
-          const stops = s.dropoffs.map((d, i) => ({
-            shipment_id: data.id,
-            seq: i + 1,
-            location: d.location,
-            position: d.position as unknown as Json,
-            items: d.items as unknown as Json,
-            eta: d.eta,
-            status: d.status,
-            contact: d.contact ?? null,
-          }));
-          if (stops.length) await supabase.from("stops").insert(stops);
-        }
+  const persistField = useCallback(
+    async (id: string, patch: Record<string, unknown>) => {
+      try {
+        const { error } = await supabase
+          .from("shipments")
+          .update(patch as never)
+          .eq("id", id);
+        if (error) throw error;
+      } catch (err) {
+        reportCrudError("shipment update", err);
       }
-    } catch {
-      // silently fail
-    }
-  }, []);
+    },
+    [reportCrudError],
+  );
+
+  const persistShipment = useCallback(
+    async (s: Shipment) => {
+      try {
+        const row = {
+          tracking_id: s.trackingId,
+          status: s.status,
+          type: s.type ?? "truck",
+          country: s.country ?? "MN",
+          cargo: s.cargo,
+          origin: s.origin,
+          destination: s.destination,
+          route: s.route as unknown as Json,
+          road_route: s.roadRoute ? (s.roadRoute as unknown as Json) : null,
+          progress: s.progress,
+          position: s.position as unknown as Json,
+          speed: s.speed,
+          eta: s.eta,
+          driver_name: s.driver,
+          driver_phone: s.driverPhone,
+          driver_license: s.driverLicense,
+          driver_experience: parseInt(s.driverExperience) || 0,
+          driver_rating: s.driverRating,
+          vehicle_id: s.vehicleId,
+          plate_number: s.plateNumber,
+          capacity: s.capacity,
+          total_weight: s.totalWeight,
+          shipper: s.shipper,
+          consignee: s.consignee,
+          shipper_id: s.shipperId ?? null,
+          receiver_id: s.receiverId ?? null,
+          cargo_items: s.cargoItems as unknown as Json,
+          gps_online: s.gpsOnline ?? true,
+          last_gps_at: s.lastGpsAt ?? null,
+          last_known_pos: s.lastKnownPos ? (s.lastKnownPos as unknown as Json) : null,
+          manual_override: s.manualOverride ?? false,
+        };
+
+        if (s.id.includes("-") && s.id.length > 20) {
+          const { error } = await supabase.from("shipments").update(row).eq("id", s.id);
+          if (error) throw error;
+        } else {
+          const { data, error } = await supabase
+            .from("shipments")
+            .insert(row)
+            .select("id")
+            .single();
+          if (error) throw error;
+          if (data?.id) {
+            setShipments((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
+            const stops = s.dropoffs.map((d, i) => ({
+              shipment_id: data.id,
+              seq: i + 1,
+              location: d.location,
+              position: d.position as unknown as Json,
+              items: d.items as unknown as Json,
+              eta: d.eta,
+              status: d.status,
+              contact: d.contact ?? null,
+            }));
+            if (stops.length) {
+              const { error: stopsError } = await supabase.from("stops").insert(stops);
+              if (stopsError) throw stopsError;
+            }
+          }
+        }
+      } catch (err) {
+        reportCrudError("shipment save", err);
+      }
+    },
+    [reportCrudError],
+  );
 
   // ---------------- Real GPS via browser Geolocation API ----------------
   const startRealGps = useCallback((id: string) => {
@@ -994,7 +1021,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from("shipments")
       .delete()
       .eq("id", id)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("shipment delete", error);
+      });
   };
 
   const overridePosition = (id: string, pos: LatLng, progressOverride?: number) => {
@@ -1084,7 +1113,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .update({ status: "done" })
       .eq("shipment_id", shipmentId)
       .eq("seq", stopSeq)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("stop update", error);
+      });
 
     const shipment = shipments.find((x) => x.id === shipmentId);
     if (shipment) {
@@ -1118,7 +1149,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .update({ status: "pending" })
       .eq("shipment_id", shipmentId)
       .eq("seq", stopSeq)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("stop update", error);
+      });
 
     const shipment = shipments.find((x) => x.id === shipmentId);
     if (shipment) {
@@ -1159,6 +1192,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .select("id")
       .single();
+    if (error) {
+      reportCrudError("driver create", error);
+      return undefined;
+    }
     if (data?.id) {
       setDrivers((prev) => prev.map((x) => (x.id === d.id ? { ...x, id: data.id } : x)));
       return data.id as string;
@@ -1192,7 +1229,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from("drivers")
       .update(row as never)
       .eq("id", id)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("driver update", error);
+      });
   };
 
   const removeDriver = (id: string) => {
@@ -1201,7 +1240,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from("drivers")
       .delete()
       .eq("id", id)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("driver delete", error);
+      });
   };
 
   // ---------------- Station CRUD ----------------
@@ -1216,7 +1257,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
       .select("id")
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          reportCrudError("station create", error);
+          return;
+        }
         if (data?.id)
           setStations((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
       });
@@ -1243,7 +1288,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from("stations")
       .update(row as never)
       .eq("id", id)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("station update", error);
+      });
   };
 
   const removeStation = (id: string) => {
@@ -1252,7 +1299,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .from("stations")
       .delete()
       .eq("id", id)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) reportCrudError("station delete", error);
+      });
   };
 
   return (
