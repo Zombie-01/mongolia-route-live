@@ -17,6 +17,7 @@ import {
   type Shipment,
 } from "@/lib/demo-data";
 import type { Station } from "@/lib/store";
+import { usePackedMarkers } from "@/hooks/usePackedMarkers";
 
 if (typeof window !== "undefined") {
   delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
@@ -170,6 +171,78 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (pos: LatLng) => void })
     },
   });
   return null;
+}
+
+interface PackedMarkersRendererProps {
+  shipments: Shipment[];
+  wagonPositions: Record<string, LatLng>;
+  focusId?: string;
+  onSelect?: (id: string) => void;
+  editable?: boolean;
+  onDragEnd?: (id: string, pos: LatLng, progress?: number) => void;
+  snapToRailway: (point: LatLng) => LatLng;
+  railInterpolated: Record<string, LatLng[]>;
+  roadRoutes: Record<string, LatLng[] | null>;
+}
+
+function PackedMarkersRenderer({
+  shipments,
+  wagonPositions,
+  focusId,
+  onSelect,
+  editable,
+  onDragEnd,
+  snapToRailway,
+  railInterpolated,
+  roadRoutes,
+}: PackedMarkersRendererProps) {
+  const packedPositions = usePackedMarkers(shipments, wagonPositions);
+
+  return (
+    <>
+      {shipments.map((s) => {
+        // Use packed position for spreading overlapping markers
+        const markerPos = packedPositions[s.id] || s.position;
+
+        return (
+          <Marker
+            key={s.id}
+            position={markerPos}
+            icon={makeTruckIcon(s, !!editable, 1)}
+            draggable={!!editable}
+            eventHandlers={{
+              click: () => onSelect?.(s.id),
+              dragend: (e) => {
+                if (!editable || !onDragEnd) return;
+                const marker = e.target as L.Marker;
+                const { lat, lng } = marker.getLatLng();
+                const pt: LatLng = [lat, lng];
+                if (s.type === "wagon") {
+                  // For wagons: snap to railway track and calculate progress along GeoJSON route
+                  const snap = snapToRailway(pt);
+                  marker.setLatLng(snap);
+                  // Calculate progress along the GeoJSON-interpolated route
+                  const route = railInterpolated[s.id];
+                  if (route && route.length >= 2) {
+                    const snapResult = nearestOnRoute(route, snap);
+                    onDragEnd(s.id, snapResult.pos, snapResult.t);
+                  } else {
+                    onDragEnd(s.id, snap);
+                  }
+                } else {
+                  // For trucks: snap to road route
+                  const path = s.roadRoute ?? roadRoutes[s.id] ?? s.route;
+                  const snap = nearestOnRoute(path, pt);
+                  marker.setLatLng(snap.pos);
+                  onDragEnd(s.id, snap.pos);
+                }
+              },
+            }}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 interface Props {
@@ -446,66 +519,17 @@ export function FleetMap({
           />
         )),
       )}
-      {shipments.map((s) => {
-        // For wagons: override position with the correct GeoJSON-interpolated
-        // position so the train icon follows every coordinate of the railway track.
-        const markerPos =
-          s.type === "wagon" && wagonPositions[s.id] ? wagonPositions[s.id] : s.position;
-
-        // Detect clusters: group shipments within 2km
-        const CLUSTER_RADIUS_KM = 2;
-        let scale = 1;
-        const nearby = shipments.filter((other) => {
-          if (other.id === s.id) return false;
-          const otherPos =
-            other.type === "wagon" && wagonPositions[other.id]
-              ? wagonPositions[other.id]
-              : other.position;
-          return haversineDist(markerPos, otherPos) < CLUSTER_RADIUS_KM;
-        });
-
-        if (nearby.length > 0) {
-          const clusterSize = nearby.length + 1;
-          scale = Math.max(0.6, 1 - (clusterSize - 1) * 0.08);
-        }
-
-        return (
-          <Marker
-            key={s.id}
-            position={markerPos}
-            icon={makeTruckIcon(s, !!editable, scale)}
-            draggable={!!editable}
-            eventHandlers={{
-              click: () => onSelect?.(s.id),
-              dragend: (e) => {
-                if (!editable || !onDragEnd) return;
-                const marker = e.target as L.Marker;
-                const { lat, lng } = marker.getLatLng();
-                const pt: LatLng = [lat, lng];
-                if (s.type === "wagon") {
-                  // For wagons: snap to railway track and calculate progress along GeoJSON route
-                  const snap = snapToRailway(pt);
-                  marker.setLatLng(snap);
-                  // Calculate progress along the GeoJSON-interpolated route
-                  const route = railInterpolated[s.id];
-                  if (route && route.length >= 2) {
-                    const snapResult = nearestOnRoute(route, snap);
-                    onDragEnd(s.id, snapResult.pos, snapResult.t);
-                  } else {
-                    onDragEnd(s.id, snap);
-                  }
-                } else {
-                  // For trucks: snap to road route
-                  const path = s.roadRoute ?? roadRoutes[s.id] ?? s.route;
-                  const snap = nearestOnRoute(path, pt);
-                  marker.setLatLng(snap.pos);
-                  onDragEnd(s.id, snap.pos);
-                }
-              },
-            }}
-          />
-        );
-      })}
+      <PackedMarkersRenderer
+        shipments={shipments}
+        wagonPositions={wagonPositions}
+        focusId={focusId}
+        onSelect={onSelect}
+        editable={editable}
+        onDragEnd={onDragEnd}
+        snapToRailway={snapToRailway}
+        railInterpolated={railInterpolated}
+        roadRoutes={roadRoutes}
+      />
     </MapContainer>
   );
 }

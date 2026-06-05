@@ -101,12 +101,15 @@ function TrackPage() {
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterDriver, setFilterDriver] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [filterTrackingIdLocal, setFilterTrackingIdLocal] = useState("");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
 
   useEffect(() => {
     if (!role) nav({ to: "/" });
   }, [role, nav]);
+
+  const companies = Array.from(new Set(drivers.map((d) => d.company).filter(Boolean)));
 
   const visibleShipments =
     role === "customer" && customerId
@@ -162,6 +165,11 @@ function TrackPage() {
       if (!s.trackingId.toLowerCase().includes(filterTrackingIdLocal.toLowerCase())) {
         return false;
       }
+    }
+    // Company filter (based on shipper)
+    if (filterCompany) {
+      if (!s.shipper || !s.shipper.toLowerCase().includes(filterCompany.toLowerCase()))
+        return false;
     }
     return true;
   });
@@ -231,105 +239,50 @@ function TrackPage() {
               </button>
             </form>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowDelivered(true)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
-                    showDelivered
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                  }`}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-muted-foreground">Харагдах</label>
+                <select
+                  value={showDelivered ? "all" : "current"}
+                  onChange={(e) => setShowDelivered(e.target.value === "all")}
+                  className="rounded-md border border-border bg-card/60 px-2 py-1 text-sm outline-none"
                 >
-                  {t.all}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDelivered(false)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
-                    !showDelivered
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                  }`}
-                >
-                  {t.current}
-                </button>
+                  <option value="all">{t.all}</option>
+                  <option value="current">{t.current}</option>
+                </select>
               </div>
               <div className="text-xs text-muted-foreground">
                 {filteredShipments.length} {t.shipmentsCount}
               </div>
             </div>
-            <div className="flex flex-wrap gap-1.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setMode("all")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                  mode === "all"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                }`}
+            <div className="pt-2">
+              <label className="mb-1 block text-[9px] uppercase tracking-wider text-muted-foreground">
+                Төрөл
+              </label>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as "all" | "truck" | "railway")}
+                className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
               >
-                {t.all}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("truck")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                  mode === "truck"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                🚚 Машин
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("railway")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                  mode === "railway"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                🚆 Вагон
-              </button>
+                <option value="all">{t.all}</option>
+                <option value="truck">🚚 Машин</option>
+                <option value="railway">🚆 Вагон</option>
+              </select>
             </div>
             {/* Active/Inactive filter buttons */}
-            <div className="flex flex-wrap gap-1.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setFilterActive("all")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                  filterActive === "all"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                }`}
+            <div className="pt-2">
+              <label className="mb-1 block text-[9px] uppercase tracking-wider text-muted-foreground">
+                Статус
+              </label>
+              <select
+                value={filterActive}
+                onChange={(e) => setFilterActive(e.target.value as "all" | "active" | "inactive")}
+                className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
               >
-                {t.all}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterActive("active")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                  filterActive === "active"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                {t.active}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterActive("inactive")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                  filterActive === "inactive"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                Идэвхгүй
-              </button>
+                <option value="all">{t.all}</option>
+                <option value="active">{t.active}</option>
+                <option value="inactive">Идэвхгүй</option>
+              </select>
             </div>
             {/* Shipments list */}
             <div className="space-y-1">
@@ -417,6 +370,25 @@ function TrackPage() {
                     {drivers.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {mode !== "railway" && companies.length > 0 && (
+                <div className="mt-2">
+                  <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                    Компанийн шүүлт
+                  </div>
+                  <select
+                    value={filterCompany}
+                    onChange={(e) => setFilterCompany(e.target.value)}
+                    className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+                  >
+                    <option value="">Бүгд</option>
+                    {companies.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
                       </option>
                     ))}
                   </select>

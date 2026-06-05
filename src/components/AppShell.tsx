@@ -47,9 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               S
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">
-                ACHAA<span className="text-primary">.live</span>
-              </div>
+              <div className="text-sm font-semibold tracking-tight">Пример Агро</div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                 Mongolia Fleet
               </div>
@@ -128,9 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     S
                   </div>
                   <div className="leading-tight">
-                    <div className="text-sm font-semibold tracking-tight">
-                      ACHAA<span className="text-primary">.live</span>
-                    </div>
+                    <div className="text-sm font-semibold tracking-tight">Пример Агро</div>
                   </div>
                 </div>
                 <button

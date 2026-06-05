@@ -73,13 +73,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ACHAA.live — Монголын ачаа тээврийн хяналт" },
+      { title: "Пример Агро — Монголын ачаа тээврийн хяналт" },
       {
         name: "description",
         content: "Шууд GPS хяналт, OpenStreetMap дээр суурилсан логистикийн платформ.",
       },
-      { name: "author", content: "ACHAA.live" },
-      { property: "og:title", content: "ACHAA.live — Монголын ачаа тээврийн хяналт" },
+      { name: "author", content: "Пример Агро" },
+      { property: "og:title", content: "Пример Агро — Монголын ачаа тээврийн хяналт" },
       {
         property: "og:description",
         content: "Шууд GPS хяналт, OpenStreetMap дээр суурилсан логистикийн платформ.",
@@ -87,7 +87,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "ACHAA.live — Монголын ачаа тээврийн хяналт" },
+      { name: "twitter:title", content: "Пример Агро — Монголын ачаа тээврийн хяналт" },
       {
         name: "twitter:description",
         content: "Шууд GPS хяналт, OpenStreetMap дээр суурилсан логистикийн платформ.",

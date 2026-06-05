@@ -60,6 +60,7 @@ function DashboardPage() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterCustomer, setFilterCustomer] = useState("");
   const [filterDriver, setFilterDriver] = useState("");
+  const [filterCompany, setFilterCompany] = useState("");
   const [filterTrackingId, setFilterTrackingId] = useState("");
 
   const { data: customers = [] } = useQuery({
@@ -75,6 +76,7 @@ function DashboardPage() {
   });
 
   const { drivers } = useStore();
+  const companies = Array.from(new Set(drivers.map((d) => d.company).filter(Boolean)));
 
   useEffect(() => {
     if (loading) return;
@@ -126,6 +128,11 @@ function DashboardPage() {
       if (matchDriver && s.driver !== matchDriver.name) {
         return false;
       }
+    }
+    // Company filter (based on shipper string)
+    if (filterCompany) {
+      if (!s.shipper || !s.shipper.toLowerCase().includes(filterCompany.toLowerCase()))
+        return false;
     }
     // Tracking number filter
     if (filterTrackingId) {
@@ -216,40 +223,19 @@ function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 px-4 pb-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setMode("all")}
-              className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                mode === "all"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-              }`}
+          <div className="px-4 pb-2 pt-2">
+            <label className="mb-1 block text-[10px] uppercase tracking-wider text-muted-foreground">
+              Төрөл
+            </label>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as "all" | "truck" | "railway")}
+              className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
             >
-              Бүгд
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("truck")}
-              className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                mode === "truck"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              Машинууд
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("railway")}
-              className={`rounded-full border px-3 py-1 text-[11px] transition ${
-                mode === "railway"
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border bg-card/60 text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              Төмөр замын
-            </button>
+              <option value="all">Бүгд</option>
+              <option value="truck">Машинууд</option>
+              <option value="railway">Төмөр замын</option>
+            </select>
           </div>
 
           {/* Filter section */}
@@ -319,6 +305,23 @@ function DashboardPage() {
             </div>
             <div className="mt-2">
               <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                Компанийн шүүлт
+              </div>
+              <select
+                value={filterCompany}
+                onChange={(e) => setFilterCompany(e.target.value)}
+                className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs outline-none focus:border-primary"
+              >
+                <option value="">Бүгд</option>
+                {companies.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-2">
+              <div className="mb-1 text-[9px] uppercase tracking-wider text-muted-foreground">
                 Хүргэлтийн дугаар
               </div>
               <input
@@ -333,7 +336,8 @@ function DashboardPage() {
               filterDateTo ||
               filterCustomer ||
               filterDriver ||
-              filterTrackingId) && (
+              filterTrackingId ||
+              filterCompany) && (
               <button
                 onClick={() => {
                   setFilterDateFrom("");

@@ -88,15 +88,72 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Extract token from a variety of sources: standard Authorization header,
+    // common alternate headers, or cookies (some clients/platforms populate different names).
+    const getTokenFromRequest = () => {
+      const headerCandidates = [
+        "authorization",
+        "Authorization",
+        "x-supabase-jwt",
+        "x-supabase-auth",
+        "x-nhost-jwt",
+        "sb-access-token",
+        "x-access-token",
+      ];
+      for (const name of headerCandidates) {
+        const h = req.headers.get(name);
+        if (h) {
+          if (h.toLowerCase().startsWith("bearer "))
+            return { token: h.replace(/^Bearer\s+/i, ""), source: name };
+          return { token: h, source: name };
+        }
+      }
+
+      const cookie = req.headers.get("cookie");
+      if (cookie) {
+        const parts = cookie.split(";").map((s) => s.trim());
+        for (const p of parts) {
+          const [k, v] = p.split("=");
+          if (!k) continue;
+          // common cookie names observed in various deployments
+          if (
+            k === "sb:token" ||
+            k === "sb_token" ||
+            k === "supabase-auth-token" ||
+            k === "session"
+          ) {
+            return { token: decodeURIComponent(v || ""), source: `cookie:${k}` };
+          }
+        }
+      }
+      return null;
+    };
+
+    const tokenObj = getTokenFromRequest();
+    let isServiceAuth = false;
+    // If no token supplied, allow service-role apikey header as a fallback (internal use only)
+    if (!tokenObj || !tokenObj.token) {
+      const apiKeyHeader =
+        req.headers.get("apikey") ||
+        req.headers.get("x-api-key") ||
+        req.headers.get("x-supabase-apikey");
+      if (apiKeyHeader && supabaseServiceKey && apiKeyHeader === supabaseServiceKey) {
+        isServiceAuth = true;
+        try {
+          console.info("update-user: authorized via apikey header");
+        } catch {}
+      } else {
+        return new Response(JSON.stringify({ error: "Unauthorized: missing token" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    const token = authHeader.replace("Bearer ", "");
+    const token = tokenObj?.token;
+    try {
+      if (tokenObj?.source) console.info("update-user: token-source", tokenObj.source);
+    } catch {}
     // Log incoming headers for debugging
     try {
       console.info("update-user: incoming-headers", Object.fromEntries(req.headers.entries()));
@@ -119,32 +176,40 @@ Deno.serve(async (req: Request) => {
         return null;
       }
     })();
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
-    });
-
-    const { data: userData, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !userData.user) {
-      console.warn("update-user: auth.getUser failed", authError);
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    let callerUserId: string | null = null;
+    if (!isServiceAuth) {
+      const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
       });
-    }
 
-    const { data: roleData, error: roleError } = await supabaseAuth
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
+      const { data: userData, error: authError } = await supabaseAuth.auth.getUser();
+      if (authError || !userData.user) {
+        console.warn("update-user: auth.getUser failed", authError);
+        return new Response(JSON.stringify({ error: "Invalid token" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    if (roleError || roleData?.role !== "admin") {
-      console.warn("update-user: caller missing admin role", roleError, roleData);
-      return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      callerUserId = userData.user.id;
+
+      const { data: roleData, error: roleError } = await supabaseAuth
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerUserId)
+        .maybeSingle();
+
+      if (roleError || roleData?.role !== "admin") {
+        console.warn("update-user: caller missing admin role", roleError, roleData);
+        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      // service auth: caller is the service key, allow operation
+      callerUserId = "service";
     }
 
     const body: UpdateUserData = (parsedJson ??
@@ -194,16 +259,37 @@ Deno.serve(async (req: Request) => {
     }
 
     if (Object.keys(updateData).length > 0) {
-      const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUser(
-        body.userId,
-        updateData,
-      );
-      if (updateError) {
-        console.error("update-user: admin.updateUser failed", updateError);
+      // Log existing user and intended update for debugging
+      try {
+        console.info("update-user: existingUser", {
+          id: existingUser.user?.id,
+          email: existingUser.user?.email,
+          user_metadata: existingUser.user?.user_metadata,
+        });
+      } catch {}
+      console.info("update-user: updateData", updateData);
+
+      try {
+        const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUser(
+          body.userId,
+          updateData,
+        );
+        if (updateError) {
+          console.error("update-user: admin.updateUser failed", updateError);
+          return new Response(
+            JSON.stringify({ error: `Failed to update user`, details: updateError }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      } catch (e) {
+        console.error("update-user: admin.updateUser threw", e);
         return new Response(
-          JSON.stringify({ error: `Failed to update user: ${updateError.message}` }),
+          JSON.stringify({ error: `Failed to update user`, details: String(e) }),
           {
-            status: 400,
+            status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
