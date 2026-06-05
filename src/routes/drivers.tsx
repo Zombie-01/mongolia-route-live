@@ -241,14 +241,33 @@ function DriversPage() {
       }
 
       updateDriver(editing.id, updated);
-      const updatePayload: any = { email: accountEmail || null };
-      if (passportFile) updatePayload.passport_photo_url = passportUrl;
-      if (profileFile) updatePayload.profile_photo_url = profileUrl;
-      if (vehicleCertFile) updatePayload.vehicle_cert_url = vehicleCertUrl;
-      if (trailerCertFile) updatePayload.trailer_cert_url = trailerCertUrl;
-      if (Object.keys(updatePayload).length > 0) {
-        await supabase.from("drivers").update(updatePayload).eq("id", editing.id);
-      }
+
+      // Build complete update payload with all fields
+      const updatePayload: any = {
+        name: form.name,
+        phone: form.phone,
+        license: form.license,
+        experience: form.experience,
+        rating: form.rating,
+        plate_number: form.plateNumber,
+        vehicle_id: form.vehicleId,
+        capacity: form.capacity,
+        type: form.type,
+        country: form.country,
+        active: form.active,
+        trailer_plates: form.trailerPlates.join(", ") || null,
+        email: accountEmail || null,
+        passport_photo_url: passportUrl,
+        profile_photo_url: profileUrl,
+        vehicle_cert_url: vehicleCertUrl,
+        trailer_cert_url: trailerCertUrl,
+        // Add optional fields if they exist
+        ...(form.accountNumber && { account_number: form.accountNumber }),
+        ...(form.mongoliaPhone && { mongolia_phone: form.mongoliaPhone }),
+        ...(form.russiaPhone && { russia_phone: form.russiaPhone }),
+      };
+
+      await supabase.from("drivers").update(updatePayload).eq("id", editing.id);
       setFormOpen(false);
       return;
     }

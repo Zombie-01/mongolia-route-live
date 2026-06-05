@@ -77,11 +77,28 @@ Deno.serve(async (req: Request) => {
       auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
     });
 
+    // First fetch existing user to preserve metadata (especially the 'role' field)
+    const { data: existingUser, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(
+      body.userId,
+    );
+    if (fetchError) {
+      return new Response(
+        JSON.stringify({ error: `Failed to fetch user: ${fetchError.message}` }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const updateData: Record<string, unknown> = {};
     if (body.email) updateData.email = body.email;
     if (body.password) updateData.password = body.password;
     if (body.display_name || body.phone) {
+      // Preserve existing metadata (especially 'role') and merge with new values
+      const existingMetadata = existingUser.user?.user_metadata || {};
       updateData.user_metadata = {
+        ...existingMetadata, // preserve existing fields like 'role'
         ...(body.display_name ? { display_name: body.display_name } : {}),
         ...(body.phone ? { phone: body.phone } : {}),
       };
