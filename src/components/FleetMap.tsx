@@ -22,7 +22,7 @@ if (typeof window !== "undefined") {
   delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 }
 
-function makeTruckIcon(s: Shipment, draggable: boolean) {
+function makeTruckIcon(s: Shipment, draggable: boolean, scale: number = 1) {
   const offline = !!(s.type !== "wagon" && s.gpsOnline === false);
   const cls =
     s.status === "stopped" || s.status === "delayed"
@@ -109,11 +109,14 @@ function makeTruckIcon(s: Shipment, draggable: boolean) {
     }`;
   }
 
+  const scaledSize = isTruckCustom ? [40 * scale, 34 * scale] : [40 * scale, 44 * scale];
+  const scaledAnchor = isTruckCustom ? [20 * scale, 26 * scale] : [20 * scale, 18 * scale];
+
   return L.divIcon({
     className: "",
-    iconSize: isTruckCustom ? [40, 34] : [40, 44],
-    iconAnchor: isTruckCustom ? [20, 26] : [20, 18],
-    html: `<div class="truck-marker ${cls}" style="${ring}${glowStyle}">${innerContent}${badge}${labelHtml}</div>`,
+    iconSize: scaledSize as [number, number],
+    iconAnchor: scaledAnchor as [number, number],
+    html: `<div class="truck-marker ${cls}" style="transform:scale(${scale});transform-origin:center;${ring}${glowStyle}">${innerContent}${scale < 1 ? "" : badge}${scale < 1 ? "" : labelHtml}</div>`,
   });
 }
 
@@ -449,11 +452,28 @@ export function FleetMap({
         const markerPos =
           s.type === "wagon" && wagonPositions[s.id] ? wagonPositions[s.id] : s.position;
 
+        // Detect clusters: group shipments within 2km
+        const CLUSTER_RADIUS_KM = 2;
+        let scale = 1;
+        const nearby = shipments.filter((other) => {
+          if (other.id === s.id) return false;
+          const otherPos =
+            other.type === "wagon" && wagonPositions[other.id]
+              ? wagonPositions[other.id]
+              : other.position;
+          return haversineDist(markerPos, otherPos) < CLUSTER_RADIUS_KM;
+        });
+
+        if (nearby.length > 0) {
+          const clusterSize = nearby.length + 1;
+          scale = Math.max(0.6, 1 - (clusterSize - 1) * 0.08);
+        }
+
         return (
           <Marker
             key={s.id}
             position={markerPos}
-            icon={makeTruckIcon(s, !!editable)}
+            icon={makeTruckIcon(s, !!editable, scale)}
             draggable={!!editable}
             eventHandlers={{
               click: () => onSelect?.(s.id),
