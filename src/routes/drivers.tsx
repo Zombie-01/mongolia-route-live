@@ -10,6 +10,13 @@ export const Route = createFileRoute("/drivers")({
   component: DriversPage,
 });
 
+const DEFAULT_TRANSPORT_COMPANIES = [
+  "Монгол Транс",
+  "Алтан Тээвэр",
+  "Тэнгэр Тээвэр",
+  "Наран Тээвэр",
+];
+
 function emptyDriver(): Driver {
   return {
     id: `d_${Math.random().toString(36).slice(2, 8)}`,
@@ -22,6 +29,7 @@ function emptyDriver(): Driver {
     vehicleId: "",
     capacity: "20 тн",
     type: "truck",
+    company: "",
     country: "MN",
     active: true,
     trailerPlates: [],
@@ -65,6 +73,8 @@ function DriversPage() {
   const [trailerCertFile, setTrailerCertFile] = useState<File | null>(null);
   const [detailDriver, setDetailDriver] = useState<Driver | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [companyFilter, setCompanyFilter] = useState<string>("");
+  const [transportCompanies] = useState<string[]>(DEFAULT_TRANSPORT_COMPANIES);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [isMobile, setIsMobile] = useState<boolean>(
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
@@ -72,16 +82,20 @@ function DriversPage() {
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
-    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     // init
     setIsMobile(mq.matches);
-    if (mq.addEventListener) mq.addEventListener("change", handler as any);
-    else mq.addListener(handler as any);
+    if (mq.addEventListener) mq.addEventListener("change", handler);
+    else mq.addListener(handler);
     return () => {
-      if (mq.removeEventListener) mq.removeEventListener("change", handler as any);
-      else mq.removeListener(handler as any);
+      if (mq.removeEventListener) mq.removeEventListener("change", handler);
+      else mq.removeListener(handler);
     };
   }, []);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [companyFilter]);
 
   useEffect(() => {
     if (!sentinelRef.current) return;
@@ -105,8 +119,9 @@ function DriversPage() {
 
   if (loading || role !== "admin") return null;
 
-  const visibleDrivers = drivers.slice(0, visibleCount);
-  const hasMore = visibleCount < drivers.length;
+  const filteredDrivers = drivers.filter((d) => !companyFilter || d.company === companyFilter);
+  const visibleDrivers = filteredDrivers.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredDrivers.length;
 
   const openNew = () => {
     setEditing(null);
@@ -241,14 +256,6 @@ function DriversPage() {
       }
 
       updateDriver(editing.id, updated);
-      const updatePayload: any = { email: accountEmail || null };
-      if (passportFile) updatePayload.passport_photo_url = passportUrl;
-      if (profileFile) updatePayload.profile_photo_url = profileUrl;
-      if (vehicleCertFile) updatePayload.vehicle_cert_url = vehicleCertUrl;
-      if (trailerCertFile) updatePayload.trailer_cert_url = trailerCertUrl;
-      if (Object.keys(updatePayload).length > 0) {
-        await supabase.from("drivers").update(updatePayload).eq("id", editing.id);
-      }
       setFormOpen(false);
       return;
     }
@@ -374,7 +381,7 @@ function DriversPage() {
           { label: "Хүртээмж", value: form.capacity || "" },
           { label: "Лиценз", value: form.license || "" },
           { label: "Туршлага", value: form.experience ? `${form.experience} жил` : "" },
-          { label: "Оролтын улс", value: form.country || "" },
+          { label: "Тээврийн компани", value: form.company || "" },
           { label: "Зураг ба баримт бичиг", value: "", type: "section" },
           { label: "Passport зураг", value: passportUrl || "", type: "image" },
           { label: "Профайл зураг", value: profileUrl || "", type: "image" },
@@ -405,7 +412,6 @@ function DriversPage() {
   };
 
   const typeLabel = (t: string) => (t === "wagon" ? "🚆 Вагон" : "🚚 Машин");
-  const countryFlag = (c: string) => (c === "RU" ? "🇷🇺" : c === "CN" ? "🇨🇳" : "🇲🇳");
 
   const downloadJson = (d: Driver) => {
     const blob = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
@@ -453,7 +459,7 @@ function DriversPage() {
           { label: "Даац", value: driver.capacity || "-" },
           { label: "Лиценз", value: driver.license || "-" },
           { label: "Туршлага", value: driver.experience ? `${driver.experience} жил` : "-" },
-          { label: "Улс", value: driver.country || "-" },
+          { label: "Тээврийн компани", value: driver.company || "-" },
           { label: "Үнэлгээ", value: `⭐ ${driver.rating.toFixed(1)}` },
           { label: "Чиргүүлийн мэдээлэл", value: "", type: "section" },
           {
@@ -494,6 +500,38 @@ function DriversPage() {
           </div>
 
           <div className="mt-6 space-y-3">
+            <div className="rounded-xl border border-border bg-card/40 p-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Тээврийн компанигаар шүүлт
+                  </div>
+                  <select
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                    className="mt-2 inp w-full"
+                  >
+                    <option value="">Бүгд</option>
+                    {(transportCompanies.length > 0
+                      ? transportCompanies
+                      : DEFAULT_TRANSPORT_COMPANIES
+                    ).map((company) => (
+                      <option key={company} value={company}>
+                        {company}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-1 lg:col-span-2">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Шүүж байгаагийн тоо
+                  </div>
+                  <div className="mt-2 text-sm text-foreground">
+                    {filteredDrivers.length} жолооч
+                  </div>
+                </div>
+              </div>
+            </div>
             {visibleDrivers.map((d) => {
               if (isMobile) {
                 return (
@@ -555,7 +593,7 @@ function DriversPage() {
                           className="h-9 w-9 rounded-full object-cover"
                         />
                         <span className="text-base font-semibold">{d.name}</span>
-                        <span className="text-sm">{countryFlag(d.country)}</span>
+                        <span className="text-sm">{d.company || "-"}</span>
                         <span className="text-xs text-muted-foreground">{typeLabel(d.type)}</span>
                         {!d.active && (
                           <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
@@ -566,7 +604,7 @@ function DriversPage() {
                       <div className="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
                         <span>Утас: {d.phone}</span>
                         <span>И-мэйл: {d.email || "-"}</span>
-                        <span>Үнэмлэх: {d.license}</span>
+                        <span>Компани: {d.company || "-"}</span>
                         <span>Дугаар: {d.plateNumber}</span>
                         <span>Туршлага: {d.experience} жил</span>
                         <span>Даац: {d.capacity}</span>
@@ -957,17 +995,21 @@ function DriversPage() {
                       placeholder="12345678"
                     />
                   </Field>
-                  <Field label="Улс">
+                  <Field label="Тээврийн компани">
                     <select
-                      value={form.country}
-                      onChange={(e) =>
-                        setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })
-                      }
+                      value={form.company}
+                      onChange={(e) => setForm({ ...form, company: e.target.value })}
                       className="inp"
                     >
-                      <option value="MN">🇲🇳 Монгол</option>
-                      <option value="RU">🇷🇺 ОХУ</option>
-                      <option value="CN">🇨🇳 БНХАУ</option>
+                      <option value="">Сонгоно уу</option>
+                      {(transportCompanies.length > 0
+                        ? transportCompanies
+                        : DEFAULT_TRANSPORT_COMPANIES
+                      ).map((company) => (
+                        <option key={company} value={company}>
+                          {company}
+                        </option>
+                      ))}
                     </select>
                   </Field>
                   <Field label="Төрөл">

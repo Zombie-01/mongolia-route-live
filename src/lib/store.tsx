@@ -33,6 +33,7 @@ export interface Driver {
   vehicleId: string;
   capacity: string;
   type: "truck" | "wagon";
+  company: string;
   country: "MN" | "RU" | "CN";
   active: boolean;
   trailerPlates: string[];
@@ -257,7 +258,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.from("drivers").select("*").order("name");
       if (error || !data) throw error;
       setDrivers(
-        data.map((r) => ({
+        (data as any[]).map((r) => ({
           id: r.id as string,
           name: r.name as string,
           phone: r.phone as string,
@@ -274,6 +275,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             (r.passport_photo_url as string | null | undefined) ??
             (r.passport_image as string | null | undefined) ??
             "",
+          company: (r.company as string | null | undefined) ?? "",
           capacity: r.capacity as string,
           type: (r.type as "truck" | "wagon") ?? "truck",
           country: (r.country as "MN" | "RU" | "CN") ?? "MN",
@@ -1187,9 +1189,10 @@ ${message}`);
         passport_photo_url: d.passportImage || null,
         vehicle_cert_url: d.vehicleCertImage || null,
         trailer_cert_url: d.trailerCertImage || null,
+        company: d.company || null,
         email: d.email || null,
         user_id: d.userId || null,
-      })
+      } as any)
       .select("id")
       .single();
     if (error) {
@@ -1215,6 +1218,7 @@ ${message}`);
     if (patch.vehicleId !== undefined) row.vehicle_id = patch.vehicleId;
     if (patch.capacity !== undefined) row.capacity = patch.capacity;
     if (patch.type !== undefined) row.type = patch.type;
+    if (patch.company !== undefined) row.company = patch.company;
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
     if (patch.trailerPlates !== undefined)
