@@ -22,7 +22,7 @@ if (typeof window !== "undefined") {
   delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 }
 
-function makeTruckIcon(s: Shipment, draggable: boolean) {
+function makeTruckIcon(s: Shipment, draggable: boolean, scale: number = 1) {
   const offline = !!(s.type !== "wagon" && s.gpsOnline === false);
   const cls =
     s.status === "stopped" || s.status === "delayed"
@@ -109,11 +109,14 @@ function makeTruckIcon(s: Shipment, draggable: boolean) {
     }`;
   }
 
+  const scaledSize = isTruckCustom ? [40 * scale, 34 * scale] : [40 * scale, 44 * scale];
+  const scaledAnchor = isTruckCustom ? [20 * scale, 26 * scale] : [20 * scale, 18 * scale];
+
   return L.divIcon({
     className: "",
-    iconSize: isTruckCustom ? [40, 34] : [40, 44],
-    iconAnchor: isTruckCustom ? [20, 26] : [20, 18],
-    html: `<div class="truck-marker ${cls}" style="${ring}${glowStyle}">${innerContent}${badge}${labelHtml}</div>`,
+    iconSize: scaledSize as [number, number],
+    iconAnchor: scaledAnchor as [number, number],
+    html: `<div class="truck-marker ${cls}" style="transform:scale(${scale});transform-origin:center;${ring}${glowStyle}">${innerContent}${scale < 1 ? "" : badge}${scale < 1 ? "" : labelHtml}</div>`,
   });
 }
 
@@ -443,49 +446,110 @@ export function FleetMap({
           />
         )),
       )}
-      {shipments.map((s) => {
-        // For wagons: override position with the correct GeoJSON-interpolated
-        // position so the train icon follows every coordinate of the railway track.
-        const markerPos =
-          s.type === "wagon" && wagonPositions[s.id] ? wagonPositions[s.id] : s.position;
+      {useMemo(() => {
+        // Detect clusters: group shipments within 2km
+        const CLUSTER_RADIUS_KM = 2;
+        const clusters: Array<{ centroid: LatLng; shipmentIds: string[] }> = [];
+        const processed = new Set<string>();
 
-        return (
-          <Marker
-            key={s.id}
-            position={markerPos}
-            icon={makeTruckIcon(s, !!editable)}
-            draggable={!!editable}
-            eventHandlers={{
-              click: () => onSelect?.(s.id),
-              dragend: (e) => {
-                if (!editable || !onDragEnd) return;
-                const marker = e.target as L.Marker;
-                const { lat, lng } = marker.getLatLng();
-                const pt: LatLng = [lat, lng];
-                if (s.type === "wagon") {
-                  // For wagons: snap to railway track and calculate progress along GeoJSON route
-                  const snap = snapToRailway(pt);
-                  marker.setLatLng(snap);
-                  // Calculate progress along the GeoJSON-interpolated route
-                  const route = railInterpolated[s.id];
-                  if (route && route.length >= 2) {
-                    const snapResult = nearestOnRoute(route, snap);
-                    onDragEnd(s.id, snapResult.pos, snapResult.t);
+        shipments.forEach((s) => {
+          if (processed.has(s.id)) return;
+
+          const markerPos =
+            s.type === "wagon" && wagonPositions[s.id] ? wagonPositions[s.id] : s.position;
+
+          // Find nearby shipments
+          const nearby = shipments.filter((other) => {
+            if (processed.has(other.id) || other.id === s.id) return false;
+            const otherPos =
+              other.type === "wagon" && wagonPositions[other.id]
+                ? wagonPositions[other.id]
+                : other.position;
+            return haversineDist(markerPos, otherPos) < CLUSTER_RADIUS_KM;
+          });
+
+          const group = [s, ...nearby];
+          const centroid: LatLng = [
+            group.reduce((sum, sh) => {
+              const pos =
+                sh.type === "wagon" && wagonPositions[sh.id] ? wagonPositions[sh.id] : sh.position;
+              return sum + pos[0];
+            }, 0) / group.length,
+            group.reduce((sum, sh) => {
+              const pos =
+                sh.type === "wagon" && wagonPositions[sh.id] ? wagonPositions[sh.id] : sh.position;
+              return sum + pos[1];
+            }, 0) / group.length,
+          ];
+
+          clusters.push({ centroid, shipmentIds: group.map((sh) => sh.id) });
+          group.forEach((sh) => processed.add(sh.id));
+        });
+
+        // Render markers with compression/scaling for clustered items
+        return shipments.map((s) => {
+          const markerPos =
+            s.type === "wagon" && wagonPositions[s.id] ? wagonPositions[s.id] : s.position;
+
+          // Find which cluster this shipment belongs to
+          const cluster = clusters.find((c) => c.shipmentIds.includes(s.id));
+          if (!cluster) return null;
+
+          // Scale factor: fewer items = larger icons
+          // Max 5 items per cluster, so min scale = 0.6
+          const scale =
+            cluster.shipmentIds.length > 1
+              ? Math.max(0.6, 1 - (cluster.shipmentIds.length - 1) * 0.08)
+              : 1;
+
+          return (
+            <Marker
+              key={s.id}
+              position={markerPos}
+              icon={makeTruckIcon(s, !!editable, scale)}
+              draggable={!!editable}
+              eventHandlers={{
+                click: () => onSelect?.(s.id),
+                dragend: (e) => {
+                  if (!editable || !onDragEnd) return;
+                  const marker = e.target as L.Marker;
+                  const { lat, lng } = marker.getLatLng();
+                  const pt: LatLng = [lat, lng];
+                  if (s.type === "wagon") {
+                    // For wagons: snap to railway track and calculate progress along GeoJSON route
+                    const snap = snapToRailway(pt);
+                    marker.setLatLng(snap);
+                    // Calculate progress along the GeoJSON-interpolated route
+                    const route = railInterpolated[s.id];
+                    if (route && route.length >= 2) {
+                      const snapResult = nearestOnRoute(route, snap);
+                      onDragEnd(s.id, snapResult.pos, snapResult.t);
+                    } else {
+                      onDragEnd(s.id, snap);
+                    }
                   } else {
-                    onDragEnd(s.id, snap);
+                    // For trucks: snap to road route
+                    const path = s.roadRoute ?? roadRoutes[s.id] ?? s.route;
+                    const snap = nearestOnRoute(path, pt);
+                    marker.setLatLng(snap.pos);
+                    onDragEnd(s.id, snap.pos);
                   }
-                } else {
-                  // For trucks: snap to road route
-                  const path = s.roadRoute ?? roadRoutes[s.id] ?? s.route;
-                  const snap = nearestOnRoute(path, pt);
-                  marker.setLatLng(snap.pos);
-                  onDragEnd(s.id, snap.pos);
-                }
-              },
-            }}
-          />
-        );
-      })}
+                },
+              }}
+            />
+          );
+        });
+      }, [
+        shipments,
+        wagonPositions,
+        roadRoutes,
+        railInterpolated,
+        focusId,
+        onSelect,
+        editable,
+        onDragEnd,
+        snapToRailway,
+      ])}
     </MapContainer>
   );
 }
