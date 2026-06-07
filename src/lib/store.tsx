@@ -350,6 +350,11 @@ ${message}`);
     async (id: string, patch: Database["public"]["Tables"]["shipments"]["Update"]) => {
       // Prevent admin UI from accidentally persisting position updates when merely viewing.
       // Admin should only persist when they explicitly perform an override (manual_override === true).
+      console.log(
+        role === "admin" &&
+          (patch.position !== undefined || patch.last_known_pos !== undefined) &&
+          patch.manual_override !== true,
+      );
       if (
         role === "admin" &&
         (patch.position !== undefined || patch.last_known_pos !== undefined) &&
@@ -527,134 +532,78 @@ ${message}`);
           const speed = pos.coords.speed; // m/s, can be null
           const gpsPos: LatLng = [lat, lng];
 
-          setShipments((prev) =>
-            prev.map((s) => {
-              if (s.id !== id) return s;
-              if (s.type === "wagon") return s; // wagons don't use GPS
+          // Only persist GPS to DB, don't update local state
+          // State will update only from DB subscription
+          const current = shipmentsRef.current.find((s) => s.id === id);
+          if (!current || current.type === "wagon") return;
 
-              const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
+          const kmh = speed != null ? Math.round(speed * 3.6) : current.speed;
 
-              // Special handling for "empty" status: driver en route to pickup point
-              if (s.status === "empty") {
-                const pickupPoint = s.route[0]; // origin station
-                if (pickupPoint) {
-                  const pickupRoute: LatLng[] = [gpsPos, pickupPoint];
-                  const updated = {
-                    ...s,
-                    position: gpsPos,
-                    progress: 0, // main route progress stays 0 until loaded
-                    speed: kmh,
-                    gpsOnline: true,
-                    lastGpsAt: new Date().toISOString(),
-                    lastKnownPos: gpsPos,
-                    manualOverride: false,
-                    pickupRoute,
-                  };
-
-                  try {
-                    const last = gpsLastPersist.current.get(id) ?? 0;
-                    const now = Date.now();
-                    if (now - last > 5000) {
-                      gpsLastPersist.current.set(id, now);
-                      persistField(id, {
-                        position: gpsPos as unknown as Json,
-                        speed: kmh,
-                        last_gps_at: new Date().toISOString(),
-                        last_known_pos: gpsPos as unknown as Json,
-                        manual_override: false,
-                      });
-                    }
-                  } catch {
-                    // ignore persistence errors
-                  }
-
-                  return updated;
-                }
-              }
-
-              // "Loading" status: keep position at origin (pickup point), progress stays 0
-              if (s.status === "loading") {
-                const pickupPoint = s.route[0]; // origin station
-                const loadingPos = pickupPoint ?? gpsPos;
-                const updated = {
-                  ...s,
-                  position: loadingPos,
-                  progress: 0, // still loading, no progress on main route
-                  speed: 0,
-                  gpsOnline: true,
-                  lastGpsAt: new Date().toISOString(),
-                  lastKnownPos: loadingPos,
-                  manualOverride: false,
-                };
-
-                try {
-                  const last = gpsLastPersist.current.get(id) ?? 0;
-                  const now = Date.now();
-                  if (now - last > 5000) {
-                    gpsLastPersist.current.set(id, now);
-                    persistField(id, {
-                      position: loadingPos as unknown as Json,
-                      speed: 0,
-                      last_gps_at: new Date().toISOString(),
-                      last_known_pos: loadingPos as unknown as Json,
-                      manual_override: false,
-                    });
-                  }
-                } catch {
-                  // ignore persistence errors
-                }
-
-                return updated;
-              }
-
-              const path = s.roadRoute ?? s.route;
-              const snap = nearestOnRoute(path, gpsPos);
-
-              const updated = {
-                ...s,
-                position: snap.pos,
-                progress: snap.t,
-                speed: kmh,
-                gpsOnline: true,
-                lastGpsAt: new Date().toISOString(),
-                lastKnownPos: snap.pos,
-                manualOverride: false,
-              };
-
-              // Throttled persistence: push to server roughly every 5s,
-              // but if the previous state was a manual admin override,
-              // persist immediately so driver GPS wins right away.
+          if (current.status === "empty") {
+            const pickupPoint = current.route[0];
+            if (pickupPoint) {
               try {
-                const wasManual = s.manualOverride === true;
                 const last = gpsLastPersist.current.get(id) ?? 0;
                 const now = Date.now();
-                if (wasManual || now - last > 5000) {
+                if (now - last > 5000) {
                   gpsLastPersist.current.set(id, now);
                   persistField(id, {
-                    position: snap.pos as unknown as Json,
-                    progress: snap.t,
+                    position: gpsPos as unknown as Json,
                     speed: kmh,
                     last_gps_at: new Date().toISOString(),
-                    last_known_pos: snap.pos as unknown as Json,
+                    last_known_pos: gpsPos as unknown as Json,
                     manual_override: false,
                   });
                 }
               } catch {
-                // ignore persistence errors
+                // ignore
               }
-
-              return updated;
-            }),
-          );
+            }
+          } else if (current.status === "loading") {
+            const pickupPoint = current.route[0];
+            const loadingPos = pickupPoint ?? gpsPos;
+            try {
+              const last = gpsLastPersist.current.get(id) ?? 0;
+              const now = Date.now();
+              if (now - last > 5000) {
+                gpsLastPersist.current.set(id, now);
+                persistField(id, {
+                  position: loadingPos as unknown as Json,
+                  speed: 0,
+                  last_gps_at: new Date().toISOString(),
+                  last_known_pos: loadingPos as unknown as Json,
+                  manual_override: false,
+                });
+              }
+            } catch {
+              // ignore
+            }
+          } else {
+            // In transit: snap to route and persist
+            const path = current.roadRoute ?? current.route;
+            const snap = nearestOnRoute(path, gpsPos);
+            try {
+              const wasManual = current.manualOverride === true;
+              const last = gpsLastPersist.current.get(id) ?? 0;
+              const now = Date.now();
+              if (wasManual || now - last > 5000) {
+                gpsLastPersist.current.set(id, now);
+                persistField(id, {
+                  position: snap.pos as unknown as Json,
+                  progress: snap.t,
+                  speed: kmh,
+                  last_gps_at: new Date().toISOString(),
+                  last_known_pos: snap.pos as unknown as Json,
+                  manual_override: false,
+                });
+              }
+            } catch {
+              // ignore
+            }
+          }
         },
         () => {
-          // GPS failed — mark offline
-          setShipments((prev) =>
-            prev.map((s) => {
-              if (s.id !== id) return s;
-              return { ...s, gpsOnline: false, speed: 0 };
-            }),
-          );
+          // GPS failed — just stop marking online, state updates only from DB
           setRealGpsActive((prev) => {
             const next = new Set(prev);
             next.delete(id);
@@ -674,12 +623,6 @@ ${message}`);
         next.add(id);
         return next;
       });
-      setShipments((prev) =>
-        prev.map((s) => {
-          if (s.id !== id) return s;
-          return { ...s, gpsOnline: true, lastGpsAt: new Date().toISOString() };
-        }),
-      );
       // initialize last-persist timestamp so first update persists quickly
       gpsLastPersist.current.set(id, Date.now() - 6000);
 
