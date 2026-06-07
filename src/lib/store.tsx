@@ -540,38 +540,35 @@ ${message}`);
           const kmh = speed != null ? Math.round(speed * 3.6) : current.speed;
 
           if (current.status === "empty") {
-            const pickupPoint = current.route[0];
-            if (pickupPoint) {
-              try {
-                const last = gpsLastPersist.current.get(id) ?? 0;
-                const now = Date.now();
-                if (now - last > 5000) {
-                  gpsLastPersist.current.set(id, now);
-                  persistField(id, {
-                    position: gpsPos as unknown as Json,
-                    speed: kmh,
-                    last_gps_at: new Date().toISOString(),
-                    last_known_pos: gpsPos as unknown as Json,
-                    manual_override: false,
-                  });
-                }
-              } catch {
-                // ignore
-              }
-            }
-          } else if (current.status === "loading") {
-            const pickupPoint = current.route[0];
-            const loadingPos = pickupPoint ?? gpsPos;
+            // Use actual GPS position, don't override with route[0]
             try {
               const last = gpsLastPersist.current.get(id) ?? 0;
               const now = Date.now();
               if (now - last > 5000) {
                 gpsLastPersist.current.set(id, now);
                 persistField(id, {
-                  position: loadingPos as unknown as Json,
-                  speed: 0,
+                  position: gpsPos as unknown as Json,
+                  speed: kmh,
                   last_gps_at: new Date().toISOString(),
-                  last_known_pos: loadingPos as unknown as Json,
+                  last_known_pos: gpsPos as unknown as Json,
+                  manual_override: false,
+                });
+              }
+            } catch {
+              // ignore
+            }
+          } else if (current.status === "loading") {
+            // Use actual GPS position, don't override with route[0]
+            try {
+              const last = gpsLastPersist.current.get(id) ?? 0;
+              const now = Date.now();
+              if (now - last > 5000) {
+                gpsLastPersist.current.set(id, now);
+                persistField(id, {
+                  position: gpsPos as unknown as Json,
+                  speed: kmh,
+                  last_gps_at: new Date().toISOString(),
+                  last_known_pos: gpsPos as unknown as Json,
                   manual_override: false,
                 });
               }
