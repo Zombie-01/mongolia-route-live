@@ -76,7 +76,7 @@ function DashboardPage() {
   });
 
   const { drivers } = useStore();
-  const companies = Array.from(new Set(drivers.map((d) => d.company).filter(Boolean)));
+  const companies = Array.from(new Set(shipments.map((s) => s.company).filter(Boolean)));
 
   useEffect(() => {
     if (loading) return;
@@ -129,9 +129,9 @@ function DashboardPage() {
         return false;
       }
     }
-    // Company filter (based on shipper string)
+    // Company filter (based on shipment.company)
     if (filterCompany) {
-      if (!s.shipper || !s.shipper.toLowerCase().includes(filterCompany.toLowerCase()))
+      if (!s.company || !s.company.toLowerCase().includes(filterCompany.toLowerCase()))
         return false;
     }
     // Tracking number filter
@@ -387,6 +387,11 @@ function DashboardPage() {
                       {s.type === "wagon" && (
                         <span className="rounded-full border border-warning/40 bg-warning/15 px-1.5 py-0.5 text-[9px] text-warning">
                           EST
+                        </span>
+                      )}
+                      {s.manualOverride && (
+                        <span className="rounded-full border border-secondary/40 bg-secondary/15 px-1.5 py-0.5 text-[9px] text-secondary">
+                          Override
                         </span>
                       )}
                       {gpsOff && (

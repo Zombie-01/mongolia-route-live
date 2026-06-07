@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useContext,
@@ -18,7 +19,7 @@ import {
   type CargoItem,
   type Dropoff,
 } from "./demo-data";
-import type { Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 type Role = "admin" | "driver" | "customer";
 
@@ -33,7 +34,6 @@ export interface Driver {
   vehicleId: string;
   capacity: string;
   type: "truck" | "wagon";
-  company: string;
   country: "MN" | "RU" | "CN";
   active: boolean;
   trailerPlates: string[];
@@ -201,12 +201,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]); // Start with empty array, load from DB
+  const shipmentsRef = useRef<Shipment[]>([]);
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
   const [realGpsActive, setRealGpsActive] = useState<Set<string>>(new Set());
   const [dbReady, setDbReady] = useState(false);
-  const tickRef = useRef<number | null>(null);
   const gpsWatchers = useRef<Map<string, number>>(new Map());
+  const gpsPersistTimers = useRef<Map<string, number>>(new Map());
   const gpsLastPersist = useRef<Map<string, number>>(new Map());
+  const clientToDbId = useRef<Map<string, string>>(new Map());
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
 
@@ -251,14 +253,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       setDbReady(false);
     }
-  }, [role, authMode, customerId, userId]);
+  }, [role, customerId]);
 
   const loadDriversFromDb = useCallback(async () => {
     try {
       const { data, error } = await supabase.from("drivers").select("*").order("name");
       if (error || !data) throw error;
       setDrivers(
-        (data as any[]).map((r) => ({
+        data.map((r) => ({
           id: r.id as string,
           name: r.name as string,
           phone: r.phone as string,
@@ -275,7 +277,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             (r.passport_photo_url as string | null | undefined) ??
             (r.passport_image as string | null | undefined) ??
             "",
-          company: (r.company as string | null | undefined) ?? "",
           capacity: r.capacity as string,
           type: (r.type as "truck" | "wagon") ?? "truck",
           country: (r.country as "MN" | "RU" | "CN") ?? "MN",
@@ -341,14 +342,92 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 ${message}`);
   }, []);
 
+  useEffect(() => {
+    shipmentsRef.current = shipments;
+  }, [shipments]);
+
   const persistField = useCallback(
-    async (id: string, patch: Record<string, unknown>) => {
+    async (id: string, patch: Database["public"]["Tables"]["shipments"]["Update"]) => {
+      // Prevent admin UI from accidentally persisting position updates when merely viewing.
+      // Admin should only persist when they explicitly perform an override (manual_override === true).
+      if (
+        role === "admin" &&
+        (patch.position !== undefined || patch.last_known_pos !== undefined) &&
+        patch.manual_override !== true
+      ) {
+        console.debug("persistField: skipping position persist for admin view", id, patch);
+        return;
+      }
       try {
-        const { error } = await supabase
-          .from("shipments")
-          .update(patch as never)
-          .eq("id", id);
+        console.debug("persistField: updating shipment", id, patch);
+        let resp = await supabase.from("shipments").update(patch).eq("id", id).select("id");
+        let { data, error } = resp;
         if (error) throw error;
+        if (!data || data.length === 0) {
+          console.warn("persistField: update returned no rows (id may not exist)", id, patch);
+          const mapped = clientToDbId.current.get(id);
+          if (mapped && mapped !== id) {
+            console.debug("persistField: retrying update with mapped DB id", mapped);
+            resp = await supabase.from("shipments").update(patch).eq("id", mapped).select("id");
+            data = resp.data;
+            if (resp.error) throw resp.error;
+            if (!data || data.length === 0) {
+              console.warn(
+                "persistField: retry also returned no rows for mapped id",
+                mapped,
+                patch,
+              );
+            } else {
+              console.debug("persistField: update OK (mapped id)", mapped, data[0]);
+            }
+          } else {
+            // Try to resolve DB id by tracking_id in case the client id differs from DB-assigned id
+            try {
+              const local = shipmentsRef.current.find((s) => s.id === id);
+              const tracking = local?.trackingId;
+              if (tracking) {
+                console.debug("persistField: attempting lookup by tracking_id", tracking);
+                const lookup = await supabase
+                  .from("shipments")
+                  .select("id")
+                  .eq("tracking_id", tracking)
+                  .maybeSingle();
+                if (lookup.error) throw lookup.error;
+                if (lookup.data && (lookup.data as any).id) {
+                  const foundId = (lookup.data as any).id as string;
+                  console.debug("persistField: found DB id by tracking_id", foundId);
+                  clientToDbId.current.set(id, foundId);
+                  resp = await supabase
+                    .from("shipments")
+                    .update(patch)
+                    .eq("id", foundId)
+                    .select("id");
+                  data = resp.data;
+                  if (resp.error) throw resp.error;
+                  if (!data || data.length === 0) {
+                    console.warn(
+                      "persistField: update still returned no rows after tracking_id retry",
+                      foundId,
+                      patch,
+                    );
+                  } else {
+                    console.debug(
+                      "persistField: update OK (found by tracking_id)",
+                      foundId,
+                      data[0],
+                    );
+                  }
+                } else {
+                  console.debug("persistField: no shipment found with tracking_id", tracking);
+                }
+              }
+            } catch (e) {
+              console.warn("persistField: tracking_id lookup failed", e);
+            }
+          }
+        } else {
+          console.debug("persistField: update OK", id, data[0]);
+        }
       } catch (err) {
         reportCrudError("shipment update", err);
       }
@@ -359,7 +438,7 @@ ${message}`);
   const persistShipment = useCallback(
     async (s: Shipment) => {
       try {
-        const row = {
+        const row: Database["public"]["Tables"]["shipments"]["Insert"] = {
           tracking_id: s.trackingId,
           status: s.status,
           type: s.type ?? "truck",
@@ -382,6 +461,7 @@ ${message}`);
           plate_number: s.plateNumber,
           capacity: s.capacity,
           total_weight: s.totalWeight,
+          company: s.company ?? null,
           shipper: s.shipper,
           consignee: s.consignee,
           shipper_id: s.shipperId ?? null,
@@ -404,6 +484,12 @@ ${message}`);
             .single();
           if (error) throw error;
           if (data?.id) {
+            // Track mapping from client-generated id -> DB-assigned id to avoid race conditions
+            try {
+              clientToDbId.current.set(s.id, data.id as string);
+            } catch {
+              /* ignore */
+            }
             setShipments((prev) => prev.map((x) => (x.id === s.id ? { ...x, id: data.id } : x)));
             const stops = s.dropoffs.map((d, i) => ({
               shipment_id: data.id,
@@ -429,39 +515,76 @@ ${message}`);
   );
 
   // ---------------- Real GPS via browser Geolocation API ----------------
-  const startRealGps = useCallback((id: string) => {
-    if (gpsWatchers.current.has(id)) return;
-    if (!navigator.geolocation) return;
+  const startRealGps = useCallback(
+    (id: string) => {
+      if (gpsWatchers.current.has(id)) return;
+      if (!navigator.geolocation) return;
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const speed = pos.coords.speed; // m/s, can be null
-        const gpsPos: LatLng = [lat, lng];
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const speed = pos.coords.speed; // m/s, can be null
+          const gpsPos: LatLng = [lat, lng];
 
-        setShipments((prev) =>
-          prev.map((s) => {
-            if (s.id !== id) return s;
-            if (s.type === "wagon") return s; // wagons don't use GPS
+          setShipments((prev) =>
+            prev.map((s) => {
+              if (s.id !== id) return s;
+              if (s.type === "wagon") return s; // wagons don't use GPS
 
-            const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
+              const kmh = speed != null ? Math.round(speed * 3.6) : s.speed;
 
-            // Special handling for "empty" status: driver en route to pickup point
-            if (s.status === "empty") {
-              const pickupPoint = s.route[0]; // origin station
-              if (pickupPoint) {
-                const pickupRoute: LatLng[] = [gpsPos, pickupPoint];
+              // Special handling for "empty" status: driver en route to pickup point
+              if (s.status === "empty") {
+                const pickupPoint = s.route[0]; // origin station
+                if (pickupPoint) {
+                  const pickupRoute: LatLng[] = [gpsPos, pickupPoint];
+                  const updated = {
+                    ...s,
+                    position: gpsPos,
+                    progress: 0, // main route progress stays 0 until loaded
+                    speed: kmh,
+                    gpsOnline: true,
+                    lastGpsAt: new Date().toISOString(),
+                    lastKnownPos: gpsPos,
+                    manualOverride: false,
+                    pickupRoute,
+                  };
+
+                  try {
+                    const last = gpsLastPersist.current.get(id) ?? 0;
+                    const now = Date.now();
+                    if (now - last > 5000) {
+                      gpsLastPersist.current.set(id, now);
+                      persistField(id, {
+                        position: gpsPos as unknown as Json,
+                        speed: kmh,
+                        last_gps_at: new Date().toISOString(),
+                        last_known_pos: gpsPos as unknown as Json,
+                        manual_override: false,
+                      });
+                    }
+                  } catch {
+                    // ignore persistence errors
+                  }
+
+                  return updated;
+                }
+              }
+
+              // "Loading" status: keep position at origin (pickup point), progress stays 0
+              if (s.status === "loading") {
+                const pickupPoint = s.route[0]; // origin station
+                const loadingPos = pickupPoint ?? gpsPos;
                 const updated = {
                   ...s,
-                  position: gpsPos,
-                  progress: 0, // main route progress stays 0 until loaded
-                  speed: kmh,
+                  position: loadingPos,
+                  progress: 0, // still loading, no progress on main route
+                  speed: 0,
                   gpsOnline: true,
                   lastGpsAt: new Date().toISOString(),
-                  lastKnownPos: gpsPos,
+                  lastKnownPos: loadingPos,
                   manualOverride: false,
-                  pickupRoute,
                 };
 
                 try {
@@ -470,128 +593,133 @@ ${message}`);
                   if (now - last > 5000) {
                     gpsLastPersist.current.set(id, now);
                     persistField(id, {
-                      position: gpsPos as unknown as Json,
-                      speed: kmh,
+                      position: loadingPos as unknown as Json,
+                      speed: 0,
                       last_gps_at: new Date().toISOString(),
-                      last_known_pos: gpsPos as unknown as Json,
+                      last_known_pos: loadingPos as unknown as Json,
+                      manual_override: false,
                     });
                   }
-                } catch {}
+                } catch {
+                  // ignore persistence errors
+                }
 
                 return updated;
               }
-            }
 
-            // "Loading" status: keep position at origin (pickup point), progress stays 0
-            if (s.status === "loading") {
-              const pickupPoint = s.route[0]; // origin station
-              const loadingPos = pickupPoint ?? gpsPos;
+              const path = s.roadRoute ?? s.route;
+              const snap = nearestOnRoute(path, gpsPos);
+
               const updated = {
                 ...s,
-                position: loadingPos,
-                progress: 0, // still loading, no progress on main route
-                speed: 0,
+                position: snap.pos,
+                progress: snap.t,
+                speed: kmh,
                 gpsOnline: true,
                 lastGpsAt: new Date().toISOString(),
-                lastKnownPos: loadingPos,
+                lastKnownPos: snap.pos,
                 manualOverride: false,
               };
 
+              // Throttled persistence: push to server roughly every 5s,
+              // but if the previous state was a manual admin override,
+              // persist immediately so driver GPS wins right away.
               try {
+                const wasManual = s.manualOverride === true;
                 const last = gpsLastPersist.current.get(id) ?? 0;
                 const now = Date.now();
-                if (now - last > 5000) {
+                if (wasManual || now - last > 5000) {
                   gpsLastPersist.current.set(id, now);
                   persistField(id, {
-                    position: loadingPos as unknown as Json,
-                    speed: 0,
+                    position: snap.pos as unknown as Json,
+                    progress: snap.t,
+                    speed: kmh,
                     last_gps_at: new Date().toISOString(),
-                    last_known_pos: loadingPos as unknown as Json,
+                    last_known_pos: snap.pos as unknown as Json,
+                    manual_override: false,
                   });
                 }
-              } catch {}
+              } catch {
+                // ignore persistence errors
+              }
 
               return updated;
-            }
+            }),
+          );
+        },
+        () => {
+          // GPS failed — mark offline
+          setShipments((prev) =>
+            prev.map((s) => {
+              if (s.id !== id) return s;
+              return { ...s, gpsOnline: false, speed: 0 };
+            }),
+          );
+          setRealGpsActive((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 15000,
+        },
+      );
 
-            const path = s.roadRoute ?? s.route;
-            const snap = nearestOnRoute(path, gpsPos);
+      gpsWatchers.current.set(id, watchId);
+      setRealGpsActive((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      setShipments((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          return { ...s, gpsOnline: true, lastGpsAt: new Date().toISOString() };
+        }),
+      );
+      // initialize last-persist timestamp so first update persists quickly
+      gpsLastPersist.current.set(id, Date.now() - 6000);
 
-            const updated = {
-              ...s,
-              position: snap.pos,
-              progress: snap.t,
-              speed: kmh,
-              gpsOnline: true,
-              lastGpsAt: new Date().toISOString(),
-              lastKnownPos: snap.pos,
-              manualOverride: false,
-            };
-
-            // Throttled persistence: only push to server roughly every 5s
-            try {
-              const last = gpsLastPersist.current.get(id) ?? 0;
-              const now = Date.now();
-              if (now - last > 5000) {
-                gpsLastPersist.current.set(id, now);
-                persistField(id, {
-                  position: snap.pos as unknown as Json,
-                  progress: snap.t,
-                  speed: kmh,
-                  last_gps_at: new Date().toISOString(),
-                  last_known_pos: snap.pos as unknown as Json,
-                });
-              }
-            } catch {
-              // ignore persistence errors
-            }
-
-            return updated;
-          }),
-        );
-      },
-      () => {
-        // GPS failed — mark offline
-        setShipments((prev) =>
-          prev.map((s) => {
-            if (s.id !== id) return s;
-            return { ...s, gpsOnline: false, speed: 0 };
-          }),
-        );
-        setRealGpsActive((prev) => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
+      const timerId = window.setInterval(() => {
+        const current = shipmentsRef.current.find((s) => s.id === id);
+        if (
+          !current ||
+          current.type === "wagon" ||
+          current.manualOverride ||
+          current.gpsOnline === false
+        ) {
+          return;
+        }
+        const last = gpsLastPersist.current.get(id) ?? 0;
+        const now = Date.now();
+        if (now - last < 5000) return;
+        gpsLastPersist.current.set(id, now);
+        persistField(id, {
+          position: current.position as unknown as Json,
+          progress: current.progress,
+          speed: current.speed,
+          last_known_pos: current.position as unknown as Json,
+          manual_override: false,
         });
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 15000,
-      },
-    );
-
-    gpsWatchers.current.set(id, watchId);
-    setRealGpsActive((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-    setShipments((prev) =>
-      prev.map((s) => {
-        if (s.id !== id) return s;
-        return { ...s, gpsOnline: true, lastGpsAt: new Date().toISOString() };
-      }),
-    );
-    // initialize last-persist timestamp so first update persists quickly
-    gpsLastPersist.current.set(id, Date.now() - 6000);
-  }, []);
+      }, 5000);
+      gpsPersistTimers.current.set(id, timerId);
+    },
+    [persistField],
+  );
 
   const stopRealGps = useCallback((id: string) => {
     const watchId = gpsWatchers.current.get(id);
     if (watchId != null) {
       navigator.geolocation.clearWatch(watchId);
       gpsWatchers.current.delete(id);
+    }
+    const timerId = gpsPersistTimers.current.get(id);
+    if (timerId != null) {
+      window.clearInterval(timerId);
+      gpsPersistTimers.current.delete(id);
     }
     gpsLastPersist.current.delete(id);
     setRealGpsActive((prev) => {
@@ -616,11 +744,19 @@ ${message}`);
 
   // Cleanup GPS watchers on unmount
   useEffect(() => {
+    const watcherIds = Array.from(gpsWatchers.current.values());
+    const timerIds = Array.from(gpsPersistTimers.current.values());
+    const watchers = gpsWatchers.current;
+    const timers = gpsPersistTimers.current;
     return () => {
-      for (const [_, watchId] of gpsWatchers.current) {
+      for (const watchId of watcherIds) {
         navigator.geolocation.clearWatch(watchId);
       }
-      gpsWatchers.current.clear();
+      for (const timerId of timerIds) {
+        clearInterval(timerId);
+      }
+      watchers.clear();
+      timers.clear();
     };
   }, []);
 
@@ -690,7 +826,7 @@ ${message}`);
     });
 
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [loadCustomerForUser]);
 
   // ---------------- Load from DB on auth ----------------
   useEffect(() => {
@@ -715,22 +851,22 @@ ${message}`);
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Only fetch OSRM routes for truck shipments that don't already have a usable roadRoute.
+      const missing = shipments.filter(
+        (s) =>
+          s.type !== "wagon" && (!s.roadRoute || s.roadRoute.length < 2) && s.route.length >= 2,
+      );
+      if (missing.length === 0) return;
+
       const results = await Promise.all(
-        shipments.map(async (s) => {
-          // Skip wagons — they use the local GeoJSON instead
-          if (s.type === "wagon") return { id: s.id, road: null };
-          return {
-            id: s.id,
-            road: await fetchRoadRoute(s.route),
-          };
-        }),
+        missing.map(async (s) => ({ id: s.id, road: await fetchRoadRoute(s.route) })),
       );
       if (cancelled) return;
       setShipments((prev) =>
         prev.map((s) => {
-          const r = results.find((x) => x.id === s.id);
           // For wagons: never set roadRoute — FleetMap uses GeoJSON
           if (s.type === "wagon") return s;
+          const r = results.find((x) => x.id === s.id);
           if (!r?.road || r.road.length < 2) return s;
           return { ...s, roadRoute: r.road, position: pointOnRoute(r.road, s.progress) };
         }),
@@ -739,16 +875,7 @@ ${message}`);
     return () => {
       cancelled = true;
     };
-  }, [dbReady]);
-
-  // ---------------- Simulation loop ----------------
-  // Disabled: no automatic demo movement. Map positions update only from real driver GPS
-  // or manual override, not from generated demo simulation.
-  useEffect(() => {
-    return () => {
-      if (tickRef.current) window.clearInterval(tickRef.current);
-    };
-  }, []);
+  }, [dbReady, shipments]);
 
   // ---------------- Auth actions ----------------
   const loginDemo = async (r: Role) => {
@@ -1170,31 +1297,27 @@ ${message}`);
   // ---------------- Driver CRUD ----------------
   const addDriver = async (d: Driver) => {
     setDrivers((prev) => [...prev, d]);
-    const { data, error } = await supabase
-      .from("drivers")
-      .insert({
-        name: d.name,
-        phone: d.phone,
-        license: d.license,
-        experience: d.experience,
-        rating: d.rating,
-        plate_number: d.plateNumber,
-        vehicle_id: d.vehicleId,
-        capacity: d.capacity,
-        type: d.type,
-        country: d.country,
-        active: d.active,
-        trailer_plates: d.trailerPlates.join(", ") || null,
-        profile_photo_url: d.profileImage || null,
-        passport_photo_url: d.passportImage || null,
-        vehicle_cert_url: d.vehicleCertImage || null,
-        trailer_cert_url: d.trailerCertImage || null,
-        company: d.company || null,
-        email: d.email || null,
-        user_id: d.userId || null,
-      } as any)
-      .select("id")
-      .single();
+    const insertRow: Database["public"]["Tables"]["drivers"]["Insert"] = {
+      name: d.name,
+      phone: d.phone,
+      license: d.license,
+      experience: d.experience,
+      rating: d.rating,
+      plate_number: d.plateNumber,
+      vehicle_id: d.vehicleId,
+      capacity: d.capacity,
+      type: d.type,
+      country: d.country,
+      active: d.active,
+      trailer_plates: d.trailerPlates.join(", ") || null,
+      profile_photo_url: d.profileImage || null,
+      passport_photo_url: d.passportImage || null,
+      vehicle_cert_url: d.vehicleCertImage || null,
+      trailer_cert_url: d.trailerCertImage || null,
+      email: d.email || null,
+      user_id: d.userId || null,
+    };
+    const { data, error } = await supabase.from("drivers").insert(insertRow).select("id").single();
     if (error) {
       reportCrudError("driver create", error);
       return undefined;
@@ -1208,7 +1331,7 @@ ${message}`);
 
   const updateDriver = (id: string, patch: Partial<Driver>) => {
     setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
-    const row: Record<string, unknown> = {};
+    const row: Partial<Database["public"]["Tables"]["drivers"]["Update"]> = {};
     if (patch.name !== undefined) row.name = patch.name;
     if (patch.phone !== undefined) row.phone = patch.phone;
     if (patch.license !== undefined) row.license = patch.license;
@@ -1218,7 +1341,6 @@ ${message}`);
     if (patch.vehicleId !== undefined) row.vehicle_id = patch.vehicleId;
     if (patch.capacity !== undefined) row.capacity = patch.capacity;
     if (patch.type !== undefined) row.type = patch.type;
-    if (patch.company !== undefined) row.company = patch.company;
     if (patch.country !== undefined) row.country = patch.country;
     if (patch.active !== undefined) row.active = patch.active;
     if (patch.trailerPlates !== undefined)
@@ -1231,7 +1353,7 @@ ${message}`);
     if (patch.userId !== undefined) row.user_id = patch.userId;
     supabase
       .from("drivers")
-      .update(row as never)
+      .update(row)
       .eq("id", id)
       .then(({ error }) => {
         if (error) reportCrudError("driver update", error);

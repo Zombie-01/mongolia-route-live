@@ -43,6 +43,7 @@ export interface Shipment {
   position: LatLng;
   type?: VehicleType;
   country?: "MN" | "RU" | "CN";
+  company?: string;
 
   // GPS state — when offline, freeze position; trucks resume from lastKnown on reconnect.
   // Wagons have type==="wagon" → always treated as "no GPS" (system estimates by time).
@@ -88,7 +89,7 @@ export function haversineDist(a: LatLng, b: LatLng): number {
 
 // Nearest point on a polyline (projects p onto each segment, returns closest).
 export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: number; d: number } {
-  if (route.length === 0) return { pos: p, t: 0 };
+  if (route.length === 0) return { pos: p, t: 0, d: 0 };
   let best = { pos: route[0], t: 0, d: Infinity };
   let acc = 0;
   let total = 0;
@@ -113,7 +114,7 @@ export function nearestOnRoute(route: LatLng[], p: LatLng): { pos: LatLng; t: nu
     }
     acc += segLen;
   }
-  return { pos: best.pos, t: best.t };
+  return { pos: best.pos, t: best.t, d: best.d };
 }
 
 export function pointOnRoute(route: LatLng[], t: number): LatLng {

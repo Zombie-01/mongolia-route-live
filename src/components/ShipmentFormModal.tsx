@@ -51,6 +51,7 @@ function emptyShipment(stations: Station[]): Shipment {
     position: ub.position,
     type: "truck",
     country: "MN",
+    company: "",
     driverPhone: "",
     driverLicense: "B/C",
     driverExperience: "1 жил",
@@ -322,17 +323,12 @@ export function ShipmentFormModal({ open, initial, onClose, onSave }: Props) {
                     </select>
                   </Field>
                   <Field label="Илгээх улс">
-                    <select
-                      value={form.country}
-                      onChange={(e) =>
-                        setForm({ ...form, country: e.target.value as "MN" | "RU" | "CN" })
-                      }
+                    <input
+                      value={form.company ?? ""}
+                      onChange={(e) => setForm({ ...form, company: e.target.value })}
+                      placeholder="Компанийн нэр"
                       className="inp"
-                    >
-                      <option value="MN">🇲🇳 Монгол</option>
-                      <option value="RU">🇷🇺 ОХУ</option>
-                      <option value="CN">🇨🇳 БНХАУ</option>
-                    </select>
+                    />
                   </Field>
                   <Field label="Ачааны нэр" wide>
                     <input

@@ -109,7 +109,7 @@ function TrackPage() {
     if (!role) nav({ to: "/" });
   }, [role, nav]);
 
-  const companies = Array.from(new Set(drivers.map((d) => d.company).filter(Boolean)));
+  const companies = Array.from(new Set(shipments.map((s) => s.company).filter(Boolean)));
 
   const visibleShipments =
     role === "customer" && customerId
@@ -166,9 +166,9 @@ function TrackPage() {
         return false;
       }
     }
-    // Company filter (based on shipper)
+    // Company filter (based on shipment.company)
     if (filterCompany) {
-      if (!s.shipper || !s.shipper.toLowerCase().includes(filterCompany.toLowerCase()))
+      if (!s.company || !s.company.toLowerCase().includes(filterCompany.toLowerCase()))
         return false;
     }
     return true;

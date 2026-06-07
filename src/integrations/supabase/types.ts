@@ -17,6 +17,7 @@ export type Database = {
           id: string;
           name: string;
           phone: string | null;
+          station_id: string | null;
           updated_at: string;
           user_id: string | null;
         };
@@ -28,6 +29,7 @@ export type Database = {
           id?: string;
           name: string;
           phone?: string | null;
+          station_id?: string | null;
           updated_at?: string;
           user_id?: string | null;
         };
@@ -39,6 +41,7 @@ export type Database = {
           id?: string;
           name?: string;
           phone?: string | null;
+          station_id?: string | null;
           updated_at?: string;
           user_id?: string | null;
         };
@@ -57,6 +60,12 @@ export type Database = {
           name: string;
           phone: string | null;
           plate_number: string | null;
+          profile_image: string | null;
+          profile_photo_url: string | null;
+          passport_image: string | null;
+          passport_photo_url: string | null;
+          vehicle_cert_url: string | null;
+          trailer_cert_url: string | null;
           rating: number | null;
           trailer_plates: string | null;
           type: string;
@@ -76,6 +85,12 @@ export type Database = {
           name: string;
           phone?: string | null;
           plate_number?: string | null;
+          profile_image?: string | null;
+          profile_photo_url?: string | null;
+          passport_image?: string | null;
+          passport_photo_url?: string | null;
+          vehicle_cert_url?: string | null;
+          trailer_cert_url?: string | null;
           rating?: number | null;
           trailer_plates?: string | null;
           type?: string;
@@ -95,6 +110,12 @@ export type Database = {
           name?: string;
           phone?: string | null;
           plate_number?: string | null;
+          profile_image?: string | null;
+          profile_photo_url?: string | null;
+          passport_image?: string | null;
+          passport_photo_url?: string | null;
+          vehicle_cert_url?: string | null;
+          trailer_cert_url?: string | null;
           rating?: number | null;
           trailer_plates?: string | null;
           type?: string;
@@ -162,12 +183,14 @@ export type Database = {
           type: string;
           updated_at: string;
           vehicle_id: string | null;
+          company: string | null;
         };
         Insert: {
           capacity?: string | null;
           cargo?: string;
           cargo_items?: Json;
           consignee?: string | null;
+          company?: string | null;
           country?: string;
           created_at?: string;
           created_by?: string | null;
@@ -205,6 +228,7 @@ export type Database = {
           cargo?: string;
           cargo_items?: Json;
           consignee?: string | null;
+          company?: string | null;
           country?: string;
           created_at?: string;
           created_by?: string | null;

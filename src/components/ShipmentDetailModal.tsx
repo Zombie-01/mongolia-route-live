@@ -20,11 +20,7 @@ const statusCls: Record<Shipment["status"], string> = {
   delivered: "bg-accent/15 text-accent border-accent/30",
 };
 
-const countryLabel: Record<string, string> = {
-  MN: "🇲🇳 Монгол",
-  RU: "🇷🇺 ОХУ",
-  CN: "🇨🇳 БНХАУ",
-};
+// display company instead of country for shipment
 
 interface Props {
   shipment: Shipment | null;
@@ -74,7 +70,7 @@ export function ShipmentDetailModal({
                   <span>·</span>
                   <span>{shipment.type === "wagon" ? "🚆 Вагон" : "🚚 Ачааны машин"}</span>
                   <span>·</span>
-                  <span>{countryLabel[shipment.country ?? "MN"]}</span>
+                  <span>{shipment.company ?? "—"}</span>
                 </div>
                 <h3 className="mt-1 truncate text-xl font-semibold">{shipment.cargo}</h3>
                 <div className="mt-1 text-xs text-muted-foreground">
@@ -288,6 +284,18 @@ export function ShipmentDetailModal({
                   <Mini
                     label="Сүүлийн GPS"
                     value={`${shipment.position[0].toFixed(3)}, ${shipment.position[1].toFixed(3)}`}
+                  />
+                  <Mini
+                    label="GPS эх сурвалж"
+                    value={
+                      shipment.manualOverride
+                        ? "Админ засвар"
+                        : shipment.type === "wagon"
+                          ? "Тооцоологдсон"
+                          : shipment.gpsOnline === false
+                            ? "GPS тасарсан"
+                            : "Live GPS"
+                    }
                   />
                 </div>
               </Section>
